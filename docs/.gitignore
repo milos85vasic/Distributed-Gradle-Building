@@ -1,0 +1,132 @@
+# Documentation specific .gitignore
+
+# Build output
+docs/_build/
+docs/_static/
+docs/_templates/
+docs/.doctrees/
+
+# Sphinx
+docs/build/
+
+# MkDocs
+docs/site/
+
+# Jekyll
+docs/_site/
+docs/.sass-cache/
+docs/.jekyll-cache/
+docs/.jekyll-metadata
+
+# Hugo
+docs/public/
+docs/resources/
+
+# VuePress
+docs/dist/
+docs/node_modules/
+docs/.temp/
+docs/.cache/
+
+# Docusaurus
+docs/build/
+docs/.docusaurus/
+
+# Temporary files
+docs/tmp/
+docs/temp/
+docs/*~
+
+# IDE files
+docs/.vscode/
+docs/.idea/
+docs/*.swp
+docs/*.swo
+
+# OS files
+docs/.DS_Store
+docs/Thumbs.db
+
+# Log files
+docs/*.log
+docs/logs/
+
+# Cache
+docs/.cache/
+
+# Auto-generated files
+docs/auto-generated/
+docs/generated/
+
+# Backup files
+docs/*.bak
+docs/*.backup
+
+# Local configuration
+docs/config.local.yml
+docs/config.local.yaml
+docs/config.local.json
+
+# Notes and drafts
+docs/notes/
+docs/drafts/
+docs/WIP/
+
+# Environment files
+docs/.env
+docs/.env.local
+
+# Node.js (if using documentation tools)
+docs/node_modules/
+docs/npm-debug.log*
+docs/yarn-debug.log*
+docs/yarn-error.log*
+
+# Python (if using Sphinx, MkDocs)
+docs/__pycache__/
+docs/*.py[cod]
+docs/env/
+docs/venv/
+docs/.env
+docs/.venv/
+
+# Database files
+docs/*.db
+docs/*.sqlite
+
+# Coverage reports
+docs/coverage/
+
+# API docs generated from code
+docs/api/
+
+# Examples that might contain sensitive data
+docs/examples/secrets/
+docs/examples/config.local.*
+
+# PDF builds
+docs/*.pdf
+
+# Epub builds
+docs/*.epub
+
+# Fonts and assets that might be large
+docs/assets/fonts/*.ttf
+docs/assets/fonts/*.otf
+docs/assets/images/*.psd
+docs/assets/images/*.ai
+
+# Search index files
+docs/search_index.json
+
+# Translation files
+docs/translation-source/
+docs/*.po
+
+# Local testing
+docs/local/
+docs/localhost/
+
+# Performance testing
+docs/lighthouse-reports/
+docs/psi-reports/

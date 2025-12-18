@@ -1,0 +1,130 @@
+# Go specific .gitignore for the distributed build system
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Build output
+bin/
+dist/
+build/
+
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Configuration files with secrets
+*-local.json
+*local.json
+config.local.json
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Data directories
+data/
+cache/
+metrics/
+
+# Certificate files
+*.pem
+*.crt
+*.key
+*.p12
+
+# Test coverage
+coverage.txt
+coverage.html
+coverage.out
+
+# Benchmarks
+*.bench
+
+# Profiling
+*.prof
+*.pprof
+
+# Race detection logs
+race.log
+
+# Memory dumps
+*.heap
+*.hprof
+
+# Build cache
+go-build/
+
+# Generated files
+generated/
+*_generated.go
+
+# Mock files
+*_mock.go
+mocks/
+
+# Protocol buffer files
+*.pb.go
+
+# Documentation build
+docs/docs/
+
+# Release artifacts
+release/
+releases/
+*.tar.gz
+*.zip
+
+# Local development
+.env
+.env.local
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Lock files
+*.lock
+
+# Performance test results
+benchmark/
+perf/
+
+# API keys and secrets (just in case)
+secrets/
+.secret
+api-keys.txt

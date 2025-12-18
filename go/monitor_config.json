@@ -1,0 +1,14 @@
+{
+  "host": "localhost",
+  "port": 8084,
+  "data_dir": "/tmp/gradle-monitor",
+  "check_interval_seconds": 30,
+  "history_retention_days": 30,
+  "alert_thresholds": {
+    "cpu_usage": 80.0,
+    "memory_usage": 90.0,
+    "disk_usage": 85.0,
+    "build_failure_rate": 20.0,
+    "response_time": 5.0
+  }
+}

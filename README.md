@@ -4,64 +4,195 @@ A robust, automated solution for accelerating Gradle builds across multiple mach
 
 ## Overview
 
-This distributed build system is designed specifically for Gradle-based projects (Java, Kotlin, Android, etc.) to significantly reduce build times through:
-- Automated code synchronization across multiple machines
-- High-parallel builds utilizing maximum CPU resources
-- Optional remote build caching for incremental builds
-- Simple, rock-solid setup with minimal configuration
+This distributed build system offers two implementation approaches:
+
+### 1. **Bash Implementation (Quick Start)**
+- Script-based automation with rsync and SSH
+- Simple setup with minimal dependencies
+- Perfect for small teams and individual developers
+- Fast deployment with existing infrastructure
+
+### 2. **Go Implementation (Production-Grade)**
+- High-performance, scalable services
+- RESTful APIs for programmatic integration
+- Advanced monitoring and metrics
+- Enterprise-ready with comprehensive features
 
 ## Key Features
 
-- **Automated Setup**: One-click scripts for configuring master and worker nodes
+### Both Implementations
+- **Automated Setup**: One-click configuration for master and worker nodes
 - **Intelligent Syncing**: Excludes build artifacts and caches from synchronization
 - **Optimized Parallelism**: Auto-detects CPU cores and configures optimal worker count
 - **Remote Caching**: Optional HTTP-based build cache server
-- **Error Handling**: Robust error checking and validation throughout the process
+- **Error Handling**: Robust error checking and validation
+
+### Go Implementation Only
+- **RESTful APIs**: Full HTTP API for integration with CI/CD systems
+- **Real-time Monitoring**: Comprehensive metrics and alerting system
+- **Advanced Caching**: Configurable storage backends with TTL and compression
+- **Auto-scaling**: Dynamic worker pool management
+- **Health Checks**: Built-in health monitoring for all components
+- **Structured Logging**: Detailed logs with configurable levels
+- **Docker/Kubernetes Support**: Containerized deployment options
 
 ## Architecture
 
 ```
-Master Node (Build Controller)
-├── Gradle Build Execution
-├── Code Synchronization (rsync)
-├── Cache Server (optional)
-└── SSH Management
-
-Worker Nodes (Code Mirrors)
-├── Project Directory Mirrors
-└── Ready for Failover/Multi-dev
+Distributed Gradle Building System
+├── Go Components (Core Services)
+│   ├── Build Coordinator (main.go)
+│   ├── Worker Nodes (worker.go)
+│   ├── Cache Server (cache_server.go)
+│   └── Monitoring System (monitor.go)
+├── Bash Components (Utilities & Management)
+│   ├── Performance Analyzer (scripts/performance_analyzer.sh)
+│   ├── Worker Pool Manager (scripts/worker_pool_manager.sh)
+│   ├── Cache Manager (scripts/cache_manager.sh)
+│   └── Health Checker (scripts/health_checker.sh)
+└── Setup Scripts
+    ├── Master Setup (setup_master.sh)
+    ├── Worker Setup (setup_worker.sh)
+    └── SSH Setup (setup_passwordless_ssh.sh)
 ```
 
 ## Quick Start
 
-### Prerequisites
+Choose your implementation approach:
+
+### **🐚 Bash Implementation (Quick Start - 30 minutes)**
+
+#### Prerequisites
 - Linux machines (Ubuntu/Debian recommended)
 - OpenJDK 17 (or your project's required version)
 - SSH access between all machines
 - Same absolute project path on all machines
 
-### 1. Setup Passwordless SSH
+#### 1. Setup Passwordless SSH
 ```bash
 # Run on any machine
 ./setup_passwordless_ssh.sh
 ```
 
-### 2. Configure Workers
+#### 2. Configure Workers
 Run on each worker machine:
 ```bash
 ./setup_worker.sh /absolute/path/to/your/gradle/project
 ```
 
-### 3. Configure Master
+#### 3. Configure Master
 Run on the master machine:
 ```bash
 ./setup_master.sh /absolute/path/to/your/gradle/project
 ```
 
-### 4. Start Building
+#### 4. Start Building
 From your project directory on master:
 ```bash
 ./sync_and_build.sh
+```
+
+---
+
+### **🚀 Go Implementation (Production-Grade - 1-2 hours)**
+
+#### Prerequisites
+- Go 1.19 or later
+- Linux/macOS/Windows
+- Docker (optional, for containerization)
+- Gradle and Java installed
+
+#### 1. Quick Demo
+```bash
+# Run automated demo
+./scripts/go_demo.sh demo
+```
+
+#### 2. Manual Setup
+```bash
+# Build all components
+./scripts/build_and_deploy.sh build
+
+# Start all services
+./scripts/build_and_deploy.sh start
+
+# Check system status
+./scripts/build_and_deploy.sh status
+
+# Submit build via API
+curl -X POST http://localhost:8080/api/build \
+  -H "Content-Type: application/json" \
+  -d '{"project_path":"/path/to/project","task_name":"build","cache_enabled":true}'
+```
+
+#### 3. Production Deployment
+```bash
+# Follow deployment guide
+# docs/GO_DEPLOYMENT.md
+
+# Use Docker/Kubernetes for production
+docker-compose up -d
+# or
+kubectl apply -f k8s/
+```
+
+---
+
+### **📊 Which Implementation to Choose?**
+
+| Use Case | Recommended | Why |
+|----------|-------------|-----|
+| Personal projects | Bash | Simple, fast setup |
+| Small teams (2-5 developers) | Bash → Go (scale later) | Start simple, upgrade as needed |
+| Medium/Large teams | Go | APIs, monitoring, better scalability |
+| CI/CD integration | Go | RESTful APIs, enterprise features |
+| Research/Analytics | Go | Comprehensive metrics and monitoring |
+
+### 5. Go Implementation (Advanced)
+
+For maximum performance and scalability, use the Go-based distributed build system:
+
+#### Start Core Services
+```bash
+# Build and start coordinator
+cd go
+go build -o coordinator main.go
+./coordinator &
+
+# Build and start cache server
+go build -o cache_server cache_server.go
+./cache_server &
+
+# Build and start monitor
+go build -o monitor monitor.go
+./monitor &
+
+# Start worker nodes
+go build -o worker worker.go
+./worker worker_config.json &
+```
+
+#### Configure Multiple Workers
+Create additional worker configs:
+```bash
+# worker-002 config
+cp worker_config.json worker_002_config.json
+# Edit worker_002_config.json with unique ID and port
+./worker worker_002_config.json &
+```
+
+#### Use HTTP API
+```bash
+# Submit build
+curl -X POST http://localhost:8080/api/build \
+  -H "Content-Type: application/json" \
+  -d '{"project_path":"/path/to/project","task_name":"build","cache_enabled":true}'
+
+# Check workers status
+curl http://localhost:8080/api/workers
+
+# Monitor system metrics
+curl http://localhost:8084/api/metrics
 ```
 
 ## Performance Gains

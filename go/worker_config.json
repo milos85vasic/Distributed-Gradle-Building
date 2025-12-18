@@ -1,0 +1,11 @@
+{
+  "id": "worker-001",
+  "host": "localhost",
+  "port": 8082,
+  "coordinator": "localhost:8081",
+  "cache_dir": "/tmp/gradle-cache-worker",
+  "work_dir": "/tmp/gradle-work",
+  "max_builds": 5,
+  "capabilities": ["gradle", "java", "testing", "compilation"],
+  "gradle_home": "/tmp/gradle-home"
+}

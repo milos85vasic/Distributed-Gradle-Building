@@ -1,0 +1,11 @@
+{
+  "host": "localhost",
+  "port": 8083,
+  "storage_type": "filesystem",
+  "storage_dir": "/tmp/gradle-cache-server",
+  "max_cache_size": 10737418240,
+  "ttl_seconds": 86400,
+  "compression": true,
+  "authentication": false,
+  "auth_token": ""
+}

@@ -52,15 +52,19 @@ test-performance:
 	@echo "Running performance tests..."
 	@./test_framework.sh performance
 	@cd performance && ./test_coordinator_performance.sh
+	@cd performance && ./test_cache_performance.sh
+	@go test ./performance -v
 
 test-security:
 	@echo "Running security tests..."
 	@./test_framework.sh security
 	@cd security && ./test_authentication_security.sh
+	@go test ./security -v
 
 test-load:
 	@echo "Running load tests..."
 	@./test_framework.sh load
+	@cd load && ./test_stress_test.sh
 
 test-e2e:
 	@echo "Running end-to-end tests..."

@@ -51,10 +51,12 @@ test-integration:
 test-performance:
 	@echo "Running performance tests..."
 	@./test_framework.sh performance
+	@cd performance && ./test_coordinator_performance.sh
 
 test-security:
 	@echo "Running security tests..."
 	@./test_framework.sh security
+	@cd security && ./test_authentication_security.sh
 
 test-load:
 	@echo "Running load tests..."

@@ -1,0 +1,115 @@
+# Test Configuration for Distributed Gradle Building System
+# This file configures the test environment parameters
+
+# Test environment
+test_environment:
+  name: "distributed-gradle-build-test"
+  version: "1.0.0"
+  
+# Project directories
+project_root: "../"
+test_data_dir: "./fixtures/test_data"
+demo_projects_dir: "./fixtures/demo_projects"
+mock_services_dir: "./fixtures/mock_services"
+results_dir: "./results"
+logs_dir: "./logs"
+
+# Test execution
+timeout:
+  unit: 60         # seconds
+  integration: 300  # seconds
+  performance: 600  # seconds
+  security: 180     # seconds
+  load: 900         # seconds
+
+# Parallel execution
+max_parallel_tests: 4
+max_workers: 8
+
+# Test project configurations
+test_projects:
+  java_small:
+    type: "java"
+    modules: 5
+    dependencies: 10
+    expected_build_time: 60  # seconds
+    
+  java_medium:
+    type: "java"
+    modules: 25
+    dependencies: 50
+    expected_build_time: 300  # seconds
+    
+  java_large:
+    type: "java"
+    modules: 100
+    dependencies: 200
+    expected_build_time: 900  # seconds
+    
+  android_small:
+    type: "android"
+    modules: 2
+    dependencies: 15
+    expected_build_time: 120  # seconds
+    
+  android_large:
+    type: "android"
+    modules: 10
+    dependencies: 75
+    expected_build_time: 600  # seconds
+
+# Service configuration
+services:
+  coordinator:
+    port: 8080
+    host: "localhost"
+    startup_timeout: 30
+    
+  cache_server:
+    port: 8081
+    host: "localhost"
+    startup_timeout: 20
+    
+  monitor:
+    port: 8082
+    host: "localhost"
+    startup_timeout: 15
+    
+  worker_base_port: 8083
+  worker_count: 3
+
+# Performance benchmarks
+performance:
+  build_time_threshold: 0.8  # 80% of expected time
+  cache_hit_rate_min: 0.7    # 70% minimum
+  memory_limit_mb: 2048
+  cpu_usage_max: 0.9         # 90% max CPU
+
+# Security settings
+security:
+  test_auth_token: "test-token-12345"
+  test_api_key: "test-api-key-67890"
+  encryption_enabled: true
+  
+# Load test configuration
+load:
+  concurrent_builds: [5, 10, 25, 50]
+  duration: 300  # 5 minutes
+  ramp_up_time: 60  # 1 minute
+  
+# Mock services
+mock_services:
+  enabled: true
+  responses_file: "./fixtures/mock_services/responses.json"
+
+# Reporting
+reporting:
+  formats: ["json", "junit", "html"]
+  include_performance_charts: true
+  coverage_threshold: 0.8  # 80% code coverage
+  
+# Cleanup
+cleanup:
+  auto_cleanup: true
+  preserve_logs: false
+  preserve_results: true

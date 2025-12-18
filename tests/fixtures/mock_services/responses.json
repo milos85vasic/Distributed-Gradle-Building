@@ -1,0 +1,286 @@
+{
+  "api_responses": {
+    "coordinator": {
+      "health": {
+        "status": "healthy",
+        "uptime": 3600,
+        "version": "1.0.0",
+        "timestamp": "2025-01-12T10:00:00Z"
+      },
+      "build_submission": {
+        "build_id": "test-build-123",
+        "status": "queued",
+        "estimated_duration": 180,
+        "queue_position": 1
+      },
+      "build_status": {
+        "id": "test-build-123",
+        "status": "running",
+        "progress": 0.65,
+        "start_time": "2025-01-12T09:30:00Z",
+        "current_task": "compileJava",
+        "worker_id": "worker-1"
+      },
+      "metrics": {
+        "total_builds": 100,
+        "active_builds": 5,
+        "completed_builds": 95,
+        "failed_builds": 10,
+        "average_build_time": 180,
+        "total_workers": 3,
+        "available_workers": 2,
+        "busy_workers": 1,
+        "cache_hit_rate": 0.75,
+        "timestamp": "2025-01-12T10:00:00Z"
+      }
+    },
+    "cache_server": {
+      "health": {
+        "status": "healthy",
+        "uptime": 7200,
+        "version": "1.0.0",
+        "timestamp": "2025-01-12T10:00:00Z"
+      },
+      "cache_get": {
+        "found": true,
+        "data": "mock-cached-data",
+        "metadata": {
+          "timestamp": "2025-01-12T09:00:00Z",
+          "size": "1024",
+          "compressed": "false"
+        }
+      },
+      "cache_put": {
+        "success": true,
+        "key": "test-cache-key",
+        "size": 1024,
+        "timestamp": "2025-01-12T10:00:00Z"
+      },
+      "statistics": {
+        "total_entries": 1500,
+        "total_size_mb": 512,
+        "hit_rate": 0.75,
+        "miss_rate": 0.25,
+        "evictions": 50,
+        "timestamp": "2025-01-12T10:00:00Z"
+      }
+    },
+    "monitor": {
+      "health": {
+        "status": "healthy",
+        "uptime": 3600,
+        "version": "1.0.0",
+        "timestamp": "2025-01-12T10:00:00Z"
+      },
+      "current_metrics": {
+        "timestamp": "2025-01-12T10:00:00Z",
+        "system_metrics": {
+          "cpu_usage": 0.45,
+          "memory_usage": 0.67,
+          "disk_usage": 0.23,
+          "load_average": [1.2, 1.1, 1.0],
+          "network_io": {
+            "bytes_received": 1048576,
+            "bytes_sent": 524288
+          }
+        },
+        "service_metrics": {
+          "coordinator": {
+            "status": "healthy",
+            "response_time": 150
+          },
+          "cache_server": {
+            "status": "healthy",
+            "response_time": 50
+          }
+        }
+      },
+      "alerts": [
+        {
+          "id": "alert-123",
+          "type": "cpu_usage",
+          "severity": "warning",
+          "message": "CPU usage is above threshold: 85%",
+          "timestamp": "2025-01-12T09:45:00Z",
+          "value": 0.85,
+          "threshold": 0.8
+        }
+      ]
+    },
+    "worker": {
+      "health": {
+        "status": "healthy",
+        "uptime": 1800,
+        "version": "1.0.0",
+        "timestamp": "2025-01-12T10:00:00Z"
+      },
+      "task_execution": {
+        "task_id": "task-456",
+        "status": "completed",
+        "start_time": "2025-01-12T09:30:00Z",
+        "end_time": "2025-01-12T09:32:00Z",
+        "duration_seconds": 120,
+        "result": {
+          "success": true,
+          "artifacts": [
+            "build/classes/java/main/TestApp.class"
+          ],
+          "logs": "Build completed successfully"
+        }
+      },
+      "heartbeat": {
+        "worker_id": "test-worker-1",
+        "status": "running",
+        "timestamp": "2025-01-12T10:00:00Z",
+        "cpu_usage": 0.25,
+        "memory_usage": 0.45,
+        "disk_usage": 0.15,
+        "active_tasks": 1,
+        "capacity": 4
+      }
+    }
+  },
+  "error_responses": {
+    "not_found": {
+      "error": "Resource not found",
+      "code": 404,
+      "timestamp": "2025-01-12T10:00:00Z"
+    },
+    "validation_error": {
+      "error": "Invalid request",
+      "details": "Missing required field: project_path",
+      "code": 400,
+      "timestamp": "2025-01-12T10:00:00Z"
+    },
+    "server_error": {
+      "error": "Internal server error",
+      "details": "Database connection failed",
+      "code": 500,
+      "timestamp": "2025-01-12T10:00:00Z"
+    },
+    "unauthorized": {
+      "error": "Unauthorized access",
+      "details": "Invalid or missing authentication token",
+      "code": 401,
+      "timestamp": "2025-01-12T10:00:00Z"
+    }
+  },
+  "test_data": {
+    "projects": {
+      "java_small": {
+        "name": "Java Small Project",
+        "build_time_estimate": 60,
+        "modules": 5,
+        "dependencies": 10
+      },
+      "java_medium": {
+        "name": "Java Medium Project", 
+        "build_time_estimate": 300,
+        "modules": 25,
+        "dependencies": 50
+      },
+      "java_large": {
+        "name": "Java Large Project",
+        "build_time_estimate": 900,
+        "modules": 100,
+        "dependencies": 200
+      },
+      "android_small": {
+        "name": "Android Small App",
+        "build_time_estimate": 120,
+        "modules": 2,
+        "dependencies": 15
+      },
+      "android_large": {
+        "name": "Android Large App",
+        "build_time_estimate": 600,
+        "modules": 10,
+        "dependencies": 75
+      }
+    },
+    "workers": {
+      "worker_1": {
+        "id": "worker-1",
+        "host": "localhost",
+        "port": 8083,
+        "capacity": 4,
+        "status": "available",
+        "cpu_usage": 0.25,
+        "memory_usage": 0.45,
+        "disk_usage": 0.15
+      },
+      "worker_2": {
+        "id": "worker-2", 
+        "host": "localhost",
+        "port": 8084,
+        "capacity": 4,
+        "status": "busy",
+        "cpu_usage": 0.75,
+        "memory_usage": 0.65,
+        "disk_usage": 0.35,
+        "active_task": "compileJava"
+      },
+      "worker_3": {
+        "id": "worker-3",
+        "host": "localhost", 
+        "port": 8085,
+        "capacity": 4,
+        "status": "offline",
+        "cpu_usage": 0.0,
+        "memory_usage": 0.0,
+        "disk_usage": 0.0,
+        "last_heartbeat": "2025-01-12T08:30:00Z"
+      }
+    },
+    "builds": {
+      "build_1": {
+        "id": "build-123",
+        "project_path": "/tmp/test-project",
+        "task_name": "build",
+        "status": "running",
+        "progress": 0.65,
+        "start_time": "2025-01-12T09:30:00Z",
+        "estimated_duration": 180,
+        "cache_enabled": true,
+        "worker_assignments": {
+          "compileJava": "worker-1",
+          "compileTestJava": "worker-2",
+          "test": "worker-3"
+        }
+      },
+      "build_2": {
+        "id": "build-456",
+        "project_path": "/tmp/test-project-2",
+        "task_name": "assemble",
+        "status": "completed",
+        "progress": 1.0,
+        "start_time": "2025-01-12T08:00:00Z",
+        "end_time": "2025-01-12T08:05:00Z",
+        "duration_seconds": 300,
+        "cache_enabled": true,
+        "cache_hit_rate": 0.75,
+        "artifacts": [
+          "build/libs/test-app.jar",
+          "build/reports/tests/test/index.html"
+        ]
+      },
+      "build_3": {
+        "id": "build-789",
+        "project_path": "/tmp/test-project-3",
+        "task_name": "build",
+        "status": "failed",
+        "progress": 0.3,
+        "start_time": "2025-01-12T07:30:00Z",
+        "end_time": "2025-01-12T07:40:00Z",
+        "duration_seconds": 600,
+        "cache_enabled": false,
+        "error": "Compilation failed: Unable to resolve dependency",
+        "error_details": {
+          "task": "compileJava",
+          "error_code": 1,
+          "stack_trace": "...\n...\n..."
+        }
+      }
+    }
+  }
+}

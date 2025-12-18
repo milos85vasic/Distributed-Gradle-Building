@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # Test environment coordinator
+  test-coordinator:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-coordinator
+    ports:
+      - "8080:8080"
+    environment:
+      - ROLE=coordinator
+      - LOG_LEVEL=debug
+      - WORKER_COUNT=3
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - ./results:/app/results
+      - ./logs:/app/logs
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Test cache server
+  test-cache:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-cache
+    ports:
+      - "8081:8081"
+    environment:
+      - ROLE=cache
+      - LOG_LEVEL=debug
+      - CACHE_BACKEND=memory
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - cache-data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Test monitor
+  test-monitor:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-monitor
+    ports:
+      - "8082:8082"
+    environment:
+      - ROLE=monitor
+      - LOG_LEVEL=debug
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - ./results:/app/results
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Test worker nodes
+  test-worker-1:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-worker-1
+    ports:
+      - "8083:8083"
+    environment:
+      - ROLE=worker
+      - LOG_LEVEL=debug
+      - WORKER_ID=worker-1
+      - WORKER_PORT=8083
+      - COORDINATOR_URL=http://test-coordinator:8080
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - worker-1-data:/workspace
+    networks:
+      - test-network
+    depends_on:
+      - test-coordinator
+      - test-cache
+    restart: unless-stopped
+
+  test-worker-2:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-worker-2
+    ports:
+      - "8084:8084"
+    environment:
+      - ROLE=worker
+      - LOG_LEVEL=debug
+      - WORKER_ID=worker-2
+      - WORKER_PORT=8084
+      - COORDINATOR_URL=http://test-coordinator:8080
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - worker-2-data:/workspace
+    networks:
+      - test-network
+    depends_on:
+      - test-coordinator
+      - test-cache
+    restart: unless-stopped
+
+  test-worker-3:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    container_name: gradle-test-worker-3
+    ports:
+      - "8085:8085"
+    environment:
+      - ROLE=worker
+      - LOG_LEVEL=debug
+      - WORKER_ID=worker-3
+      - WORKER_PORT=8085
+      - COORDINATOR_URL=http://test-coordinator:8080
+    volumes:
+      - ../go:/app/go
+      - ./fixtures:/app/fixtures
+      - worker-3-data:/workspace
+    networks:
+      - test-network
+    depends_on:
+      - test-coordinator
+      - test-cache
+    restart: unless-stopped
+
+  # Mock services for testing
+  mock-external-api:
+    image: mockserver/mockserver:latest
+    container_name: gradle-test-mock-api
+    ports:
+      - "1080:1080"
+    environment:
+      - MOCKSERVER_PROPERTY_FILE=/config/mockserver-config.properties
+    volumes:
+      - ./fixtures/mock_services:/config
+    networks:
+      - test-network
+    restart: unless-stopped
+
+  # Test database (for future use)
+  test-database:
+    image: postgres:13-alpine
+    container_name: gradle-test-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=gradle_test
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+      - ./fixtures/test_data:/docker-entrypoint-initdb.d
+    networks:
+      - test-network
+    restart: unless-stopped
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  cache-data:
+  worker-1-data:
+  worker-2-data:
+  worker-3-data:
+  test-db-data:

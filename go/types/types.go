@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // BuildRequest represents a distributed build request
 type BuildRequest struct {
@@ -71,6 +74,25 @@ type WorkerInfo struct {
 	LastSeen     time.Time
 	BuildCount   int
 	IsActive     bool
+}
+
+// WorkerPool manages distributed build workers
+type WorkerPool struct {
+	Workers    map[string]*Worker
+	MaxWorkers int
+	Mutex      sync.RWMutex
+}
+
+// Worker represents a distributed build worker
+type Worker struct {
+	ID           string
+	Host         string
+	Port         int
+	Status       string
+	LastCheckin  time.Time
+	BuildCount   int
+	Capabilities []string
+	Resources    ResourceMetrics
 }
 
 // CoordinatorConfig holds configuration for the coordinator

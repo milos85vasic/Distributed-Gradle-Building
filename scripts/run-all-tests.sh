@@ -29,7 +29,7 @@ run_test_suite() {
     echo -e "\n${BLUE}Running $suite_name tests...${NC}"
     echo "Timeout: ${timeout}s"
     
-    if cd go && go test ./tests/$test_path -v -timeout ${timeout}s -short; then
+    if cd /Users/milosvasic/Projects/Distributed-Gradle-Building/go && go test ./tests/$test_path -v -timeout ${timeout}s -short; then
         echo -e "${GREEN}✓ $suite_name tests PASSED${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
@@ -44,11 +44,11 @@ run_test_suite() {
 run_unit_tests() {
     echo -e "\n${BLUE}Running Unit Tests...${NC}"
     
-    local unit_paths=("coordinatorpkg" "workerpkg" "cachepkg" "monitorpkg" "types")
+    local unit_paths=("tests/coordinator" "tests/worker" "tests/cache" "tests/monitor" "tests/client")
     
     for path in "${unit_paths[@]}"; do
         echo "Testing $path..."
-        if cd go && go test ./$path -v -timeout 30s; then
+        if cd /Users/milosvasic/Projects/Distributed-Gradle-Building/go && go test ./$path -v -timeout 30s; then
             echo -e "${GREEN}✓ $path unit tests PASSED${NC}"
             PASSED_TESTS=$((PASSED_TESTS + 1))
         else
@@ -63,7 +63,7 @@ run_unit_tests() {
 generate_coverage() {
     echo -e "\n${BLUE}Generating coverage report...${NC}"
     
-    cd go && go test ./tests/... ./coordinatorpkg ./workerpkg ./cachepkg ./monitorpkg \
+    cd /Users/milosvasic/Projects/Distributed-Gradle-Building/go && go test ./tests/... ./coordinatorpkg ./workerpkg ./cachepkg ./monitorpkg \
         -coverprofile=full-coverage.out -covermode=count -timeout 60s
     
     if [ -f "full-coverage.out" ]; then
@@ -93,6 +93,12 @@ main() {
     
     # Run security tests
     run_test_suite "Security" "security" 30
+    
+    # Run performance tests
+    run_test_suite "Performance" "performance" 60
+    
+    # Run load tests
+    run_test_suite "Load" "load" 120
     
     # Generate coverage report
     generate_coverage

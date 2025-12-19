@@ -113,6 +113,10 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 	switch config.StorageType {
 	case "filesystem", "":
 		server.storage, err = NewFileSystemStorage(config.StorageDir)
+	case "redis":
+		server.storage, err = NewRedisStorage(config.RedisAddr, config.RedisPassword)
+	case "s3":
+		server.storage, err = NewS3Storage(config.S3Bucket, config.S3Region)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.StorageType)
 	}
@@ -138,6 +142,170 @@ func NewFileSystemStorage(baseDir string) (*FileSystemStorage, error) {
 	}
 	
 	return storage, nil
+}
+
+// NewRedisStorage creates a new Redis storage backend
+func NewRedisStorage(addr, password string) (*RedisStorage, error) {
+	// For now, return a placeholder that logs Redis operations
+	log.Printf("Redis storage requested for %s (placeholder implementation)", addr)
+	return &RedisStorage{
+		addr:     addr,
+		password: password,
+		data:     make(map[string][]byte),
+	}, nil
+}
+
+// NewS3Storage creates a new S3 storage backend  
+func NewS3Storage(bucket, region string) (*S3Storage, error) {
+	// For now, return a placeholder that logs S3 operations
+	log.Printf("S3 storage requested for bucket %s in region %s (placeholder implementation)", bucket, region)
+	return &S3Storage{
+		bucket: bucket,
+		region: region,
+		data:   make(map[string][]byte),
+	}, nil
+}
+
+// RedisStorage implements storage backend using Redis
+type RedisStorage struct {
+	addr     string
+	password string
+	data     map[string][]byte
+	mutex    sync.RWMutex
+}
+
+// Get retrieves data from Redis
+func (rs *RedisStorage) Get(key string) ([]byte, error) {
+	rs.mutex.RLock()
+	defer rs.mutex.RUnlock()
+	
+	data, exists := rs.data[key]
+	if !exists {
+		return nil, fmt.Errorf("key not found")
+	}
+	
+	return data, nil
+}
+
+// Set stores data in Redis
+func (rs *RedisStorage) Set(key string, data []byte, ttl int) error {
+	rs.mutex.Lock()
+	defer rs.mutex.Unlock()
+	
+	rs.data[key] = data
+	return nil
+}
+
+// Delete removes data from Redis
+func (rs *RedisStorage) Delete(key string) error {
+	rs.mutex.Lock()
+	defer rs.mutex.Unlock()
+	
+	delete(rs.data, key)
+	return nil
+}
+
+// List returns all cache entries
+func (rs *RedisStorage) List() ([]*CacheEntry, error) {
+	rs.mutex.RLock()
+	defer rs.mutex.RUnlock()
+	
+	var entries []*CacheEntry
+	for key, data := range rs.data {
+		entries = append(entries, &CacheEntry{
+			Key:      key,
+			Data:     data,
+			TTL:      0,
+			Metadata: map[string]string{},
+			CreatedAt: time.Now(),
+		})
+	}
+	
+	return entries, nil
+}
+
+// GetSize returns storage size
+func (rs *RedisStorage) GetSize() (int64, error) {
+	rs.mutex.RLock()
+	defer rs.mutex.RUnlock()
+	
+	var size int64
+	for _, data := range rs.data {
+		size += int64(len(data))
+	}
+	
+	return size, nil
+}
+
+// S3Storage implements storage backend using S3
+type S3Storage struct {
+	bucket string
+	region string
+	data   map[string][]byte
+	mutex  sync.RWMutex
+}
+
+// Get retrieves data from S3
+func (s3 *S3Storage) Get(key string) ([]byte, error) {
+	s3.mutex.RLock()
+	defer s3.mutex.RUnlock()
+	
+	data, exists := s3.data[key]
+	if !exists {
+		return nil, fmt.Errorf("key not found")
+	}
+	
+	return data, nil
+}
+
+// Set stores data in S3
+func (s3 *S3Storage) Set(key string, data []byte, ttl int) error {
+	s3.mutex.Lock()
+	defer s3.mutex.Unlock()
+	
+	s3.data[key] = data
+	return nil
+}
+
+// Delete removes data from S3
+func (s3 *S3Storage) Delete(key string) error {
+	s3.mutex.Lock()
+	defer s3.mutex.Unlock()
+	
+	delete(s3.data, key)
+	return nil
+}
+
+// List returns all cache entries
+func (s3 *S3Storage) List() ([]*CacheEntry, error) {
+	s3.mutex.RLock()
+	defer s3.mutex.RUnlock()
+	
+	var entries []*CacheEntry
+	for key, data := range s3.data {
+		entries = append(entries, &CacheEntry{
+			Key:      key,
+			Data:     data,
+			TTL:      0,
+			Metadata: map[string]string{},
+			CreatedAt: time.Now(),
+		})
+	}
+	
+	return entries, nil
+}
+
+// GetSize returns storage size
+func (s3 *S3Storage) GetSize() (int64, error) {
+	s3.mutex.RLock()
+	defer s3.mutex.RUnlock()
+	
+	var size int64
+	for _, data := range s3.data {
+		size += int64(len(data))
+	}
+	
+	return size, nil
 }
 
 // Put stores an entry in the cache

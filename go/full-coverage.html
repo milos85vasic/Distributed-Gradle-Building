@@ -1,0 +1,1436 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>cachepkg: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">distributed-gradle-building/cachepkg/cache.go (0.0%)</option>
+				
+				<option value="file1">distributed-gradle-building/coordinatorpkg/coordinator.go (0.0%)</option>
+				
+				<option value="file2">distributed-gradle-building/monitorpkg/monitor.go (0.0%)</option>
+				
+				<option value="file3">distributed-gradle-building/workerpkg/worker.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package cachepkg
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "net/http"
+        "os"
+        "path/filepath"
+        "sync"
+        "time"
+        
+        "distributed-gradle-building/types"
+)
+
+// CacheServer represents a distributed build cache server
+type CacheServer struct {
+        Config      types.CacheConfig
+        Storage     CacheStorage
+        Metrics     CacheMetrics
+        Mutex       sync.RWMutex
+        httpServer  *http.Server
+        shutdown    chan struct{}
+}
+
+// CacheStorage interface for different cache storage backends
+type CacheStorage interface {
+        Get(key string) (*CacheEntry, error)
+        Put(key string, entry *CacheEntry) error
+        Delete(key string) error
+        List() ([]string, error)
+        Size() (int64, error)
+        Cleanup() error
+}
+
+// CacheEntry represents a cached build artifact
+type CacheEntry struct {
+        Key       string            `json:"key"`
+        Data      []byte            `json:"data"`
+        Timestamp time.Time         `json:"timestamp"`
+        TTL       time.Duration     `json:"ttl"`
+        Metadata  map[string]string `json:"metadata"`
+}
+
+// CacheMetrics contains cache performance metrics
+type CacheMetrics struct {
+        Hits        int64            `json:"hits"`
+        Misses      int64            `json:"misses"`
+        Size        int64            `json:"size"`
+        Entries     int              `json:"entries"`
+        Evictions   int64            `json:"evictions"`
+        LastCleanup time.Time        `json:"last_cleanup"`
+        Operations  map[string]int64 `json:"operations"`
+}
+
+// FileSystemStorage implements file system based cache storage
+type FileSystemStorage struct {
+        BaseDir string
+        TTL     time.Duration
+}
+
+// NewFileSystemStorage creates a new file system storage
+func NewFileSystemStorage(baseDir string, ttl time.Duration) *FileSystemStorage <span class="cov0" title="0">{
+        return &amp;FileSystemStorage{
+                BaseDir: baseDir,
+                TTL:     ttl,
+        }
+}</span>
+
+// Get retrieves a cache entry from file system
+func (fs *FileSystemStorage) Get(key string) (*CacheEntry, error) <span class="cov0" title="0">{
+        filename := filepath.Join(fs.BaseDir, key+".cache")
+        file, err := os.Open(filename)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer file.Close()
+        
+        var entry CacheEntry
+        decoder := json.NewDecoder(file)
+        if err := decoder.Decode(&amp;entry); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        // Check TTL
+        <span class="cov0" title="0">if time.Since(entry.Timestamp) &gt; entry.TTL </span><span class="cov0" title="0">{
+                os.Remove(filename)
+                return nil, fmt.Errorf("cache entry expired")
+        }</span>
+        
+        <span class="cov0" title="0">return &amp;entry, nil</span>
+}
+
+// Put stores a cache entry to file system
+func (fs *FileSystemStorage) Put(key string, entry *CacheEntry) error <span class="cov0" title="0">{
+        if err := os.MkdirAll(fs.BaseDir, 0755); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        
+        <span class="cov0" title="0">filename := filepath.Join(fs.BaseDir, key+".cache")
+        file, err := os.Create(filename)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer file.Close()
+        
+        encoder := json.NewEncoder(file)
+        return encoder.Encode(entry)</span>
+}
+
+// Delete removes a cache entry from file system
+func (fs *FileSystemStorage) Delete(key string) error <span class="cov0" title="0">{
+        filename := filepath.Join(fs.BaseDir, key+".cache")
+        return os.Remove(filename)
+}</span>
+
+// List returns all cache keys
+func (fs *FileSystemStorage) List() ([]string, error) <span class="cov0" title="0">{
+        var keys []string
+        
+        err := filepath.Walk(fs.BaseDir, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+                
+                <span class="cov0" title="0">if !info.IsDir() &amp;&amp; filepath.Ext(path) == ".cache" </span><span class="cov0" title="0">{
+                        key := filepath.Base(path)
+                        key = key[:len(key)-6] // Remove .cache extension
+                        keys = append(keys, key)
+                }</span>
+                
+                <span class="cov0" title="0">return nil</span>
+        })
+        
+        <span class="cov0" title="0">return keys, err</span>
+}
+
+// Size returns the total size of cache storage
+func (fs *FileSystemStorage) Size() (int64, error) <span class="cov0" title="0">{
+        var totalSize int64
+        
+        err := filepath.Walk(fs.BaseDir, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+                
+                <span class="cov0" title="0">if !info.IsDir() &amp;&amp; filepath.Ext(path) == ".cache" </span><span class="cov0" title="0">{
+                        totalSize += info.Size()
+                }</span>
+                
+                <span class="cov0" title="0">return nil</span>
+        })
+        
+        <span class="cov0" title="0">return totalSize, err</span>
+}
+
+// Cleanup removes expired cache entries
+func (fs *FileSystemStorage) Cleanup() error <span class="cov0" title="0">{
+        entries, err := fs.List()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        
+        <span class="cov0" title="0">for _, key := range entries </span><span class="cov0" title="0">{
+                entry, err := fs.Get(key)
+                if err != nil </span><span class="cov0" title="0">{
+                        // Remove invalid entries
+                        fs.Delete(key)
+                        continue</span>
+                }
+                
+                <span class="cov0" title="0">if time.Since(entry.Timestamp) &gt; fs.TTL </span><span class="cov0" title="0">{
+                        fs.Delete(key)
+                }</span>
+        }
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// NewCacheServer creates a new cache server
+func NewCacheServer(config types.CacheConfig) *CacheServer <span class="cov0" title="0">{
+        var storage CacheStorage
+        
+        switch config.StorageType </span>{
+        case "filesystem":<span class="cov0" title="0">
+                storage = NewFileSystemStorage(config.StorageDir, config.TTL)</span>
+        default:<span class="cov0" title="0">
+                storage = NewFileSystemStorage(config.StorageDir, config.TTL)</span>
+        }
+        
+        <span class="cov0" title="0">return &amp;CacheServer{
+                Config:     config,
+                Storage:    storage,
+                Metrics:    CacheMetrics{Operations: make(map[string]int64)},
+                shutdown:   make(chan struct{}),
+        }</span>
+}
+
+// Get retrieves a cache entry
+func (cs *CacheServer) Get(key string) (*CacheEntry, error) <span class="cov0" title="0">{
+        cs.Mutex.Lock()
+        defer cs.Mutex.Unlock()
+        
+        entry, err := cs.Storage.Get(key)
+        if err != nil </span><span class="cov0" title="0">{
+                cs.Metrics.Misses++
+                cs.Metrics.Operations["get"]++
+                return nil, err
+        }</span>
+        
+        <span class="cov0" title="0">cs.Metrics.Hits++
+        cs.Metrics.Operations["get"]++
+        return entry, nil</span>
+}
+
+// Put stores a cache entry
+func (cs *CacheServer) Put(key string, data []byte, metadata map[string]string) error <span class="cov0" title="0">{
+        cs.Mutex.Lock()
+        
+        entry := &amp;CacheEntry{
+                Key:       key,
+                Data:      data,
+                Timestamp: time.Now(),
+                TTL:       cs.Config.TTL,
+                Metadata:  metadata,
+        }
+        
+        err := cs.Storage.Put(key, entry)
+        if err != nil </span><span class="cov0" title="0">{
+                cs.Mutex.Unlock()
+                return err
+        }</span>
+        
+        <span class="cov0" title="0">cs.Metrics.Operations["put"]++
+        cs.Mutex.Unlock()
+        
+        // Update metrics outside of lock to avoid deadlock
+        cs.updateMetrics()
+        return nil</span>
+}
+
+// Delete removes a cache entry
+func (cs *CacheServer) Delete(key string) error <span class="cov0" title="0">{
+        cs.Mutex.Lock()
+        
+        err := cs.Storage.Delete(key)
+        if err != nil </span><span class="cov0" title="0">{
+                cs.Mutex.Unlock()
+                return err
+        }</span>
+        
+        <span class="cov0" title="0">cs.Metrics.Operations["delete"]++
+        cs.Mutex.Unlock()
+        
+        // Update metrics outside of lock to avoid deadlock
+        cs.updateMetrics()
+        return nil</span>
+}
+
+// StartServer starts the HTTP server
+func (cs *CacheServer) StartServer() error <span class="cov0" title="0">{
+        mux := http.NewServeMux()
+        mux.HandleFunc("/api/cache/", cs.handleCacheRequests)
+        mux.HandleFunc("/api/metrics", cs.handleMetrics)
+        mux.HandleFunc("/api/health", cs.handleHealth)
+        
+        cs.httpServer = &amp;http.Server{
+                Addr:    fmt.Sprintf(":%d", cs.Config.Port),
+                Handler: mux,
+        }
+        
+        go func() </span><span class="cov0" title="0">{
+                log.Printf("Cache server listening on port %d", cs.Config.Port)
+                if err := cs.httpServer.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        log.Printf("HTTP server error: %v", err)
+                }</span>
+        }()
+        
+        // Start cleanup routine
+        <span class="cov0" title="0">go cs.startCleanupRoutine()
+        
+        return nil</span>
+}
+
+// Shutdown gracefully shuts down the cache server
+func (cs *CacheServer) Shutdown() error <span class="cov0" title="0">{
+        close(cs.shutdown)
+        
+        if cs.httpServer != nil </span><span class="cov0" title="0">{
+                ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+                defer cancel()
+                cs.httpServer.Shutdown(ctx)
+        }</span>
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// handleCacheRequests handles cache-related HTTP requests
+func (cs *CacheServer) handleCacheRequests(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        key := r.URL.Path[len("/api/cache/"):]
+        
+        switch r.Method </span>{
+        case http.MethodGet:<span class="cov0" title="0">
+                entry, err := cs.Get(key)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusNotFound)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(entry)</span>
+                
+        case http.MethodPut:<span class="cov0" title="0">
+                var request struct {
+                        Data     []byte            `json:"data"`
+                        Metadata map[string]string `json:"metadata"`
+                }
+                
+                if err := json.NewDecoder(r.Body).Decode(&amp;request); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">if err := cs.Put(key, request.Data, request.Metadata); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">w.WriteHeader(http.StatusOK)</span>
+                
+        case http.MethodDelete:<span class="cov0" title="0">
+                if err := cs.Delete(key); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusNotFound)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">w.WriteHeader(http.StatusOK)</span>
+                
+        default:<span class="cov0" title="0">
+                http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)</span>
+        }
+}
+
+// handleMetrics handles metrics requests
+func (cs *CacheServer) handleMetrics(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cs.Mutex.RLock()
+        metrics := cs.Metrics
+        cs.Mutex.RUnlock()
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(metrics)
+}</span>
+
+// HandleMetrics handles metrics requests (exported for testing)
+func (cs *CacheServer) HandleMetrics(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cs.handleMetrics(w, r)
+}</span>
+
+// HandleHealth handles health check requests (exported for testing)
+func (cs *CacheServer) HandleHealth(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cs.handleHealth(w, r)
+}</span>
+
+// handleHealth handles health check requests
+func (cs *CacheServer) handleHealth(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        health := map[string]interface{}{
+                "status":    "healthy",
+                "timestamp": time.Now(),
+                "size":      cs.Metrics.Size,
+                "entries":   cs.Metrics.Entries,
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(health)
+}</span>
+
+// updateMetrics updates cache metrics
+func (cs *CacheServer) updateMetrics() <span class="cov0" title="0">{
+        size, _ := cs.Storage.Size()
+        entries, _ := cs.Storage.List()
+        
+        cs.Metrics.Size = size
+        cs.Metrics.Entries = len(entries)
+}</span>
+
+// startCleanupRoutine starts the periodic cleanup routine
+func (cs *CacheServer) startCleanupRoutine() <span class="cov0" title="0">{
+        ticker := time.NewTicker(cs.Config.CleanupInterval)
+        defer ticker.Stop()
+        
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ticker.C:<span class="cov0" title="0">
+                        err := cs.Storage.Cleanup()
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Cleanup error: %v", err)
+                        }</span> else<span class="cov0" title="0"> {
+                                cs.Metrics.LastCleanup = time.Now()
+                                cs.updateMetrics()
+                        }</span>
+                case &lt;-cs.shutdown:<span class="cov0" title="0">
+                        return</span>
+                }
+        }
+}</pre>
+		
+		<pre class="file" id="file1" style="display: none">package coordinatorpkg
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "net"
+        "net/http"
+        "net/rpc"
+        "sync"
+        "time"
+        
+        "distributed-gradle-building/types"
+)
+
+// Worker represents a build worker node
+type Worker struct {
+        ID       string
+        Host     string
+        Port     int
+        Status   string
+        LastPing time.Time
+        Metadata map[string]interface{}
+}
+
+// BuildCoordinator manages distributed builds across workers
+type BuildCoordinator struct {
+        workers      map[string]*Worker
+        buildQueue   chan types.BuildRequest
+        builds       map[string]*types.BuildResponse
+        mutex        sync.RWMutex
+        httpServer   *http.Server
+        rpcServer    *rpc.Server
+        shutdown     chan struct{}
+        maxWorkers   int
+}
+
+// NewBuildCoordinator creates a new build coordinator
+func NewBuildCoordinator(maxWorkers int) *BuildCoordinator <span class="cov0" title="0">{
+        return &amp;BuildCoordinator{
+                workers:    make(map[string]*Worker),
+                buildQueue: make(chan types.BuildRequest, 100),
+                builds:     make(map[string]*types.BuildResponse),
+                shutdown:   make(chan struct{}),
+                maxWorkers: maxWorkers,
+        }
+}</span>
+
+// RegisterWorker adds a new worker to the pool
+func (bc *BuildCoordinator) RegisterWorker(worker *Worker) error <span class="cov0" title="0">{
+        bc.mutex.Lock()
+        defer bc.mutex.Unlock()
+        
+        if len(bc.workers) &gt;= bc.maxWorkers </span><span class="cov0" title="0">{
+                return fmt.Errorf("maximum workers (%d) reached", bc.maxWorkers)
+        }</span>
+        
+        <span class="cov0" title="0">worker.Status = "idle"
+        worker.LastPing = time.Now()
+        bc.workers[worker.ID] = worker
+        
+        log.Printf("Worker %s registered from %s:%d", worker.ID, worker.Host, worker.Port)
+        return nil</span>
+}
+
+// UnregisterWorker removes a worker from the pool
+func (bc *BuildCoordinator) UnregisterWorker(workerID string) <span class="cov0" title="0">{
+        bc.mutex.Lock()
+        defer bc.mutex.Unlock()
+        
+        if _, exists := bc.workers[workerID]; exists </span><span class="cov0" title="0">{
+                delete(bc.workers, workerID)
+                log.Printf("Worker %s unregistered", workerID)
+        }</span>
+}
+
+// SubmitBuild adds a build request to the queue
+func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, error) <span class="cov0" title="0">{
+        bc.mutex.Lock()
+        defer bc.mutex.Unlock()
+        
+        if request.RequestID == "" </span><span class="cov0" title="0">{
+                request.RequestID = generateBuildID()
+        }</span>
+        
+        <span class="cov0" title="0">request.Timestamp = time.Now()
+        
+        // Store initial build response
+        response := &amp;types.BuildResponse{
+                RequestID: request.RequestID,
+                Timestamp: time.Now(),
+                Success:   false,
+        }
+        bc.builds[request.RequestID] = response
+        
+        // Add to queue
+        select </span>{
+        case bc.buildQueue &lt;- request:<span class="cov0" title="0">
+                log.Printf("Build %s queued for project %s", request.RequestID, request.ProjectPath)
+                return request.RequestID, nil</span>
+        default:<span class="cov0" title="0">
+                return "", fmt.Errorf("build queue is full")</span>
+        }
+}
+
+// GetBuildStatus returns the status of a build
+func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*types.BuildResponse, error) <span class="cov0" title="0">{
+        bc.mutex.RLock()
+        defer bc.mutex.RUnlock()
+        
+        response, exists := bc.builds[buildID]
+        if !exists </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("build %s not found", buildID)
+        }</span>
+        
+        <span class="cov0" title="0">return response, nil</span>
+}
+
+// GetWorkers returns the list of registered workers
+func (bc *BuildCoordinator) GetWorkers() []Worker <span class="cov0" title="0">{
+        bc.mutex.RLock()
+        defer bc.mutex.RUnlock()
+        
+        workers := make([]Worker, 0, len(bc.workers))
+        for _, worker := range bc.workers </span><span class="cov0" title="0">{
+                workers = append(workers, *worker)
+        }</span>
+        
+        <span class="cov0" title="0">return workers</span>
+}
+
+// StartServer starts the HTTP and RPC servers
+func (bc *BuildCoordinator) StartServer(httpPort, rpcPort int) error <span class="cov0" title="0">{
+        // Start HTTP server
+        mux := http.NewServeMux()
+        mux.HandleFunc("/api/builds", bc.handleBuilds)
+        mux.HandleFunc("/api/workers", bc.handleWorkers)
+        mux.HandleFunc("/api/status", bc.HandleStatus)
+        
+        bc.httpServer = &amp;http.Server{
+                Addr:    fmt.Sprintf(":%d", httpPort),
+                Handler: mux,
+        }
+        
+        go func() </span><span class="cov0" title="0">{
+                log.Printf("HTTP server listening on port %d", httpPort)
+                if err := bc.httpServer.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        log.Printf("HTTP server error: %v", err)
+                }</span>
+        }()
+        
+        // Start RPC server
+        <span class="cov0" title="0">bc.rpcServer = rpc.NewServer()
+        rpc.Register(bc)
+        
+        rpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", rpcPort))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to start RPC listener: %v", err)
+        }</span>
+        
+        <span class="cov0" title="0">go func() </span><span class="cov0" title="0">{
+                log.Printf("RPC server listening on port %d", rpcPort)
+                for </span><span class="cov0" title="0">{
+                        conn, err := rpcListener.Accept()
+                        if err != nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                        <span class="cov0" title="0">go bc.rpcServer.ServeConn(conn)</span>
+                }
+        }()
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Shutdown gracefully shuts down the coordinator
+func (bc *BuildCoordinator) Shutdown() error <span class="cov0" title="0">{
+        close(bc.shutdown)
+        
+        if bc.httpServer != nil </span><span class="cov0" title="0">{
+                ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+                defer cancel()
+                bc.httpServer.Shutdown(ctx)
+        }</span>
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// generateBuildID generates a unique build ID
+func generateBuildID() string <span class="cov0" title="0">{
+        return fmt.Sprintf("build_%d", time.Now().UnixNano())
+}</span>
+
+// handleBuilds handles build-related HTTP requests
+func (bc *BuildCoordinator) handleBuilds(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        switch r.Method </span>{
+        case http.MethodPost:<span class="cov0" title="0">
+                var request types.BuildRequest
+                if err := json.NewDecoder(r.Body).Decode(&amp;request); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">buildID, err := bc.SubmitBuild(request)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(map[string]string{"build_id": buildID})</span>
+                
+        case http.MethodGet:<span class="cov0" title="0">
+                buildID := r.URL.Query().Get("id")
+                if buildID == "" </span><span class="cov0" title="0">{
+                        http.Error(w, "Missing build_id parameter", http.StatusBadRequest)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">response, err := bc.GetBuildStatus(buildID)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusNotFound)
+                        return
+                }</span>
+                
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(response)</span>
+                
+        default:<span class="cov0" title="0">
+                http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)</span>
+        }
+}
+
+// handleWorkers handles worker-related HTTP requests
+func (bc *BuildCoordinator) handleWorkers(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        if r.Method != http.MethodGet </span><span class="cov0" title="0">{
+                http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+                return
+        }</span>
+        
+        <span class="cov0" title="0">workers := bc.GetWorkers()
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(workers)</span>
+}
+
+// handleStatus handles status requests
+func (bc *BuildCoordinator) HandleStatus(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        status := map[string]interface{}{
+                "workers": len(bc.workers),
+                "queue":   len(bc.buildQueue),
+                "builds":  len(bc.builds),
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(status)
+}</span>
+
+// HandleBuilds handles build-related HTTP requests (exported for testing)
+func (bc *BuildCoordinator) HandleBuilds(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        bc.handleBuilds(w, r)
+}</span>
+
+// HandleWorkers handles worker-related HTTP requests (exported for testing)
+func (bc *BuildCoordinator) HandleWorkers(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        bc.handleWorkers(w, r)
+}</pre>
+		
+		<pre class="file" id="file2" style="display: none">package monitorpkg
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "net/http"
+        "sync"
+        "time"
+        
+        "distributed-gradle-building/types"
+)
+
+// Monitor represents the system monitoring service
+type Monitor struct {
+        Config        types.MonitorConfig
+        Metrics       SystemMetrics
+        Alerts        []Alert
+        Workers       map[string]WorkerMetrics
+        Builds        map[string]BuildMetrics
+        mutex         sync.RWMutex
+        httpServer    *http.Server
+        shutdown      chan struct{}
+}
+
+// SystemMetrics contains overall system metrics
+type SystemMetrics struct {
+        TotalBuilds       int64     `json:"total_builds"`
+        SuccessfulBuilds  int64     `json:"successful_builds"`
+        FailedBuilds      int64     `json:"failed_builds"`
+        ActiveWorkers     int       `json:"active_workers"`
+        QueueLength       int       `json:"queue_length"`
+        AverageBuildTime  float64   `json:"average_build_time"`
+        CacheHitRate      float64   `json:"cache_hit_rate"`
+        LastUpdate        time.Time `json:"last_update"`
+        ResourceUsage     ResourceMetrics `json:"resource_usage"`
+}
+
+// WorkerMetrics contains metrics for a specific worker
+type WorkerMetrics struct {
+        ID                string    `json:"id"`
+        Status            string    `json:"status"`
+        ActiveBuilds      int       `json:"active_builds"`
+        CompletedBuilds   int64     `json:"completed_builds"`
+        FailedBuilds      int64     `json:"failed_builds"`
+        LastSeen          time.Time `json:"last_seen"`
+        AverageBuildTime  float64   `json:"average_build_time"`
+        CPUUsage          float64   `json:"cpu_usage"`
+        MemoryUsage       int64     `json:"memory_usage"`
+}
+
+// BuildMetrics contains metrics for a specific build
+type BuildMetrics struct {
+        BuildID       string        `json:"build_id"`
+        WorkerID      string        `json:"worker_id"`
+        Status        string        `json:"status"`
+        StartTime     time.Time     `json:"start_time"`
+        EndTime       time.Time     `json:"end_time"`
+        Duration      time.Duration `json:"duration"`
+        CacheHit      bool          `json:"cache_hit"`
+        Artifacts     []string      `json:"artifacts"`
+        ResourceUsage ResourceMetrics `json:"resource_usage"`
+}
+
+// ResourceMetrics contains resource usage information
+type ResourceMetrics struct {
+        CPUPercent    float64 `json:"cpu_percent"`
+        MemoryUsage   int64   `json:"memory_usage"`
+        DiskIO        int64   `json:"disk_io"`
+        NetworkIO     int64   `json:"network_io"`
+        MaxMemoryUsed int64   `json:"max_memory_used"`
+}
+
+// Alert represents a system alert
+type Alert struct {
+        ID          string                 `json:"id"`
+        Type        string                 `json:"type"`
+        Severity    string                 `json:"severity"`
+        Message     string                 `json:"message"`
+        Timestamp   time.Time              `json:"timestamp"`
+        Resolved    bool                   `json:"resolved"`
+        Data        map[string]interface{} `json:"data"`
+}
+
+// NewMonitor creates a new monitoring service
+func NewMonitor(config types.MonitorConfig) *Monitor <span class="cov0" title="0">{
+        return &amp;Monitor{
+                Config:  config,
+                Workers: make(map[string]WorkerMetrics),
+                Builds:  make(map[string]BuildMetrics),
+                Alerts:  make([]Alert, 0),
+                shutdown: make(chan struct{}),
+                Metrics: SystemMetrics{
+                        LastUpdate: time.Now(),
+                },
+        }
+}</span>
+
+// RecordBuildStart records the start of a build
+func (m *Monitor) RecordBuildStart(buildID, workerID string) <span class="cov0" title="0">{
+        m.mutex.Lock()
+        defer m.mutex.Unlock()
+        
+        m.Builds[buildID] = BuildMetrics{
+                BuildID:   buildID,
+                WorkerID:  workerID,
+                Status:    "running",
+                StartTime: time.Now(),
+        }
+        
+        m.Metrics.TotalBuilds++
+        m.Metrics.QueueLength--
+        m.Metrics.LastUpdate = time.Now()
+}</span>
+
+// RecordBuildComplete records the completion of a build
+func (m *Monitor) RecordBuildComplete(buildID string, success bool, duration time.Duration, cacheHit bool, artifacts []string, resourceUsage ResourceMetrics) <span class="cov0" title="0">{
+        m.mutex.Lock()
+        defer m.mutex.Unlock()
+        
+        buildMetrics, exists := m.Builds[buildID]
+        if !exists </span><span class="cov0" title="0">{
+                return
+        }</span>
+        
+        <span class="cov0" title="0">buildMetrics.Status = "completed"
+        buildMetrics.EndTime = time.Now()
+        buildMetrics.Duration = duration
+        buildMetrics.CacheHit = cacheHit
+        buildMetrics.Artifacts = artifacts
+        buildMetrics.ResourceUsage = resourceUsage
+        
+        m.Builds[buildID] = buildMetrics
+        
+        if success </span><span class="cov0" title="0">{
+                m.Metrics.SuccessfulBuilds++
+        }</span> else<span class="cov0" title="0"> {
+                m.Metrics.FailedBuilds++
+        }</span>
+        
+        // Update average build time
+        <span class="cov0" title="0">totalBuilds := m.Metrics.SuccessfulBuilds + m.Metrics.FailedBuilds
+        if totalBuilds &gt; 0 </span><span class="cov0" title="0">{
+                m.Metrics.AverageBuildTime = ((m.Metrics.AverageBuildTime * float64(totalBuilds-1)) + duration.Seconds()) / float64(totalBuilds)
+        }</span>
+        
+        <span class="cov0" title="0">m.Metrics.LastUpdate = time.Now()</span>
+}
+
+// UpdateWorkerMetrics updates metrics for a specific worker
+func (m *Monitor) UpdateWorkerMetrics(workerID, status string, activeBuilds int, completedBuilds, failedBuilds int64, lastSeen time.Time, cpuUsage float64, memoryUsage int64) <span class="cov0" title="0">{
+        m.mutex.Lock()
+        defer m.mutex.Unlock()
+        
+        workerMetrics := WorkerMetrics{
+                ID:               workerID,
+                Status:           status,
+                ActiveBuilds:     activeBuilds,
+                CompletedBuilds:  completedBuilds,
+                FailedBuilds:     failedBuilds,
+                LastSeen:         lastSeen,
+                CPUUsage:         cpuUsage,
+                MemoryUsage:      memoryUsage,
+        }
+        
+        m.Workers[workerID] = workerMetrics
+        
+        // Update active workers count
+        activeCount := 0
+        for _, worker := range m.Workers </span><span class="cov0" title="0">{
+                if worker.Status == "active" </span><span class="cov0" title="0">{
+                        activeCount++
+                }</span>
+        }
+        
+        <span class="cov0" title="0">m.Metrics.ActiveWorkers = activeCount
+        m.Metrics.LastUpdate = time.Now()</span>
+}
+
+// TriggerAlert triggers a new alert
+func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[string]interface{}) <span class="cov0" title="0">{
+        m.mutex.Lock()
+        defer m.mutex.Unlock()
+        
+        alert := Alert{
+                ID:        fmt.Sprintf("alert_%d", time.Now().UnixNano()),
+                Type:      alertType,
+                Severity:  severity,
+                Message:   message,
+                Timestamp: time.Now(),
+                Resolved:  false,
+                Data:      data,
+        }
+        
+        m.Alerts = append(m.Alerts, alert)
+        log.Printf("ALERT [%s]: %s", severity, message)
+}</span>
+
+// GetSystemMetrics returns current system metrics
+func (m *Monitor) GetSystemMetrics() SystemMetrics <span class="cov0" title="0">{
+        m.mutex.RLock()
+        defer m.mutex.RUnlock()
+        
+        return m.Metrics
+}</span>
+
+// GetWorkerMetrics returns metrics for all workers
+func (m *Monitor) GetWorkerMetrics() map[string]WorkerMetrics <span class="cov0" title="0">{
+        m.mutex.RLock()
+        defer m.mutex.RUnlock()
+        
+        // Return a copy to avoid race conditions
+        result := make(map[string]WorkerMetrics)
+        for id, metrics := range m.Workers </span><span class="cov0" title="0">{
+                result[id] = metrics
+        }</span>
+        
+        <span class="cov0" title="0">return result</span>
+}
+
+// GetBuildMetrics returns metrics for all builds
+func (m *Monitor) GetBuildMetrics() map[string]BuildMetrics <span class="cov0" title="0">{
+        m.mutex.RLock()
+        defer m.mutex.RUnlock()
+        
+        // Return a copy to avoid race conditions
+        result := make(map[string]BuildMetrics)
+        for id, metrics := range m.Builds </span><span class="cov0" title="0">{
+                result[id] = metrics
+        }</span>
+        
+        <span class="cov0" title="0">return result</span>
+}
+
+// GetAlerts returns all alerts
+func (m *Monitor) GetAlerts() []Alert <span class="cov0" title="0">{
+        m.mutex.RLock()
+        defer m.mutex.RUnlock()
+        
+        // Return a copy to avoid race conditions
+        result := make([]Alert, len(m.Alerts))
+        copy(result, m.Alerts)
+        
+        return result
+}</span>
+
+// StartServer starts the HTTP server for monitoring API
+func (m *Monitor) StartServer() error <span class="cov0" title="0">{
+        mux := http.NewServeMux()
+        mux.HandleFunc("/api/metrics", m.handleMetrics)
+        mux.HandleFunc("/api/workers", m.handleWorkers)
+        mux.HandleFunc("/api/builds", m.handleBuilds)
+        mux.HandleFunc("/api/alerts", m.handleAlerts)
+        mux.HandleFunc("/api/health", m.handleHealth)
+        
+        m.httpServer = &amp;http.Server{
+                Addr:    fmt.Sprintf(":%d", m.Config.Port),
+                Handler: mux,
+        }
+        
+        go func() </span><span class="cov0" title="0">{
+                log.Printf("Monitor HTTP server listening on port %d", m.Config.Port)
+                if err := m.httpServer.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        log.Printf("HTTP server error: %v", err)
+                }</span>
+        }()
+        
+        // Start metrics collection routine
+        <span class="cov0" title="0">go m.startMetricsCollection()
+        
+        return nil</span>
+}
+
+// Shutdown gracefully shuts down the monitor
+func (m *Monitor) Shutdown() error <span class="cov0" title="0">{
+        close(m.shutdown)
+        
+        if m.httpServer != nil </span><span class="cov0" title="0">{
+                ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+                defer cancel()
+                m.httpServer.Shutdown(ctx)
+        }</span>
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// HandleMetrics handles system metrics requests (exported for testing)
+func (m *Monitor) HandleMetrics(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        m.handleMetrics(w, r)
+}</span>
+
+// HandleWorkers handles worker metrics requests (exported for testing)
+func (m *Monitor) HandleWorkers(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        m.handleWorkers(w, r)
+}</span>
+
+// HandleBuilds handles build metrics requests (exported for testing)
+func (m *Monitor) HandleBuilds(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        m.handleBuilds(w, r)
+}</span>
+
+// HandleAlerts handles alerts requests (exported for testing)
+func (m *Monitor) HandleAlerts(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        m.handleAlerts(w, r)
+}</span>
+
+// HandleHealth handles health check requests (exported for testing)
+func (m *Monitor) HandleHealth(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        m.handleHealth(w, r)
+}</span>
+
+// handleMetrics handles system metrics requests
+func (m *Monitor) handleMetrics(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        metrics := m.GetSystemMetrics()
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(metrics)
+}</span>
+
+// handleWorkers handles worker metrics requests (exported for testing)
+func (m *Monitor) handleWorkers(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        workers := m.GetWorkerMetrics()
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(workers)
+}</span>
+
+// handleBuilds handles build metrics requests (exported for testing)
+func (m *Monitor) handleBuilds(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        builds := m.GetBuildMetrics()
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(builds)
+}</span>
+
+// handleAlerts handles alerts requests (exported for testing)
+func (m *Monitor) handleAlerts(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        alerts := m.GetAlerts()
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(alerts)
+}</span>
+
+// handleHealth handles health check requests (exported for testing)
+func (m *Monitor) handleHealth(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        health := map[string]interface{}{
+                "status":    "healthy",
+                "timestamp": time.Now(),
+                "version":   "1.0.0",
+        }
+        
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(health)
+}</span>
+
+// startMetricsCollection starts the metrics collection routine
+func (m *Monitor) startMetricsCollection() <span class="cov0" title="0">{
+        ticker := time.NewTicker(m.Config.MetricsInterval)
+        defer ticker.Stop()
+        
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ticker.C:<span class="cov0" title="0">
+                        // Check for worker timeouts and trigger alerts if needed
+                        m.checkWorkerTimeouts()
+                        
+                        // Check alert thresholds and trigger alerts if needed
+                        m.checkAlertThresholds()</span>
+                        
+                case &lt;-m.shutdown:<span class="cov0" title="0">
+                        return</span>
+                }
+        }
+}
+
+// checkWorkerTimeouts checks for worker timeouts and triggers alerts
+func (m *Monitor) checkWorkerTimeouts() <span class="cov0" title="0">{
+        now := time.Now()
+        timeout := 5 * time.Minute // Configurable timeout
+        
+        for workerID, metrics := range m.Workers </span><span class="cov0" title="0">{
+                if now.Sub(metrics.LastSeen) &gt; timeout </span><span class="cov0" title="0">{
+                        // Check if we already have an alert for this worker
+                        hasAlert := false
+                        for _, alert := range m.Alerts </span><span class="cov0" title="0">{
+                                if alert.Type == "worker_timeout" &amp;&amp; alert.Data["worker_id"] == workerID &amp;&amp; !alert.Resolved </span><span class="cov0" title="0">{
+                                        hasAlert = true
+                                        break</span>
+                                }
+                        }
+                        
+                        <span class="cov0" title="0">if !hasAlert </span><span class="cov0" title="0">{
+                                m.TriggerAlert("worker_timeout", "warning", 
+                                        fmt.Sprintf("Worker %s has not been seen for %v", workerID, now.Sub(metrics.LastSeen)),
+                                        map[string]interface{}{
+                                                "worker_id": workerID,
+                                                "last_seen": metrics.LastSeen,
+                                        })
+                        }</span>
+                }
+        }
+}
+
+// CheckAlertThresholds checks metrics against alert thresholds (exported for testing)
+func (m *Monitor) CheckAlertThresholds() <span class="cov0" title="0">{
+        m.checkAlertThresholds()
+}</span>
+
+// checkAlertThresholds checks metrics against alert thresholds
+func (m *Monitor) checkAlertThresholds() <span class="cov0" title="0">{
+        // Check build failure rate
+        if m.Metrics.TotalBuilds &gt; 0 </span><span class="cov0" title="0">{
+                failureRate := float64(m.Metrics.FailedBuilds) / float64(m.Metrics.TotalBuilds)
+                if threshold, exists := m.Config.AlertThresholds["build_failure_rate"]; exists &amp;&amp; failureRate &gt; threshold </span><span class="cov0" title="0">{
+                        m.TriggerAlert("high_failure_rate", "critical",
+                                fmt.Sprintf("Build failure rate %.2f%% exceeds threshold %.2f%%", failureRate*100, threshold*100),
+                                map[string]interface{}{
+                                        "failure_rate": failureRate,
+                                        "threshold":    threshold,
+                                })
+                }</span>
+        }
+        
+        // Check queue length
+        <span class="cov0" title="0">if threshold, exists := m.Config.AlertThresholds["queue_length"]; exists &amp;&amp; int64(m.Metrics.QueueLength) &gt; int64(threshold) </span><span class="cov0" title="0">{
+                m.TriggerAlert("queue_length", "warning",
+                        fmt.Sprintf("Build queue length %d exceeds threshold %d", m.Metrics.QueueLength, int(threshold)),
+                        map[string]interface{}{
+                                "queue_length": m.Metrics.QueueLength,
+                                "threshold":    threshold,
+                        })
+        }</span>
+}</pre>
+		
+		<pre class="file" id="file3" style="display: none">package workerpkg
+
+import (
+        "fmt"
+        "log"
+        "net"
+        "net/rpc"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "sync"
+        "time"
+        
+        "distributed-gradle-building/types"
+)
+
+// WorkerService represents the build worker service
+type WorkerService struct {
+        ID           string
+        Config       types.WorkerConfig
+        Coordinator  string
+        BuildQueue   chan types.BuildRequest
+        ActiveBuilds map[string]*types.BuildResponse
+        LastPing     time.Time
+        Mutex        sync.RWMutex
+        BuildDir     string
+}
+
+// NewWorkerService creates a new worker service
+func NewWorkerService(id, coordinator string, config types.WorkerConfig) *WorkerService <span class="cov0" title="0">{
+        return &amp;WorkerService{
+                ID:           id,
+                Config:       config,
+                Coordinator:  coordinator,
+                BuildQueue:   make(chan types.BuildRequest, 10),
+                ActiveBuilds: make(map[string]*types.BuildResponse),
+                LastPing:     time.Now(),
+                BuildDir:     config.BuildDir,
+        }
+}</span>
+
+// RegisterRPCMethods registers the RPC methods for the worker
+func (ws *WorkerService) RegisterRPCMethods() <span class="cov0" title="0">{
+        rpc.Register(ws)
+}</span>
+
+// Ping responds to coordinator ping
+func (ws *WorkerService) Ping(args *struct{}, reply *struct{}) error <span class="cov0" title="0">{
+        ws.Mutex.Lock()
+        ws.LastPing = time.Now()
+        ws.Mutex.Unlock()
+        return nil
+}</span>
+
+// ExecuteBuild executes a build request
+func (ws *WorkerService) ExecuteBuild(request types.BuildRequest, response *types.BuildResponse) error <span class="cov0" title="0">{
+        log.Printf("Worker %s executing build %s for project %s", ws.ID, request.RequestID, request.ProjectPath)
+        
+        // Initialize response
+        *response = types.BuildResponse{
+                RequestID: request.RequestID,
+                WorkerID:  ws.ID,
+                Timestamp: time.Now(),
+                Success:   false,
+        }
+        
+        // Create build directory
+        buildDir := filepath.Join(ws.BuildDir, request.RequestID)
+        if err := os.MkdirAll(buildDir, 0755); err != nil </span><span class="cov0" title="0">{
+                response.ErrorMessage = fmt.Sprintf("Failed to create build directory: %v", err)
+                return nil
+        }</span>
+        
+        // Execute build
+        <span class="cov0" title="0">startTime := time.Now()
+        err := ws.runGradleBuild(request, response)
+        response.BuildDuration = time.Since(startTime)
+        
+        if err != nil </span><span class="cov0" title="0">{
+                response.ErrorMessage = fmt.Sprintf("Build failed: %v", err)
+        }</span> else<span class="cov0" title="0"> {
+                response.Success = true
+                response.Artifacts = ws.collectArtifacts(buildDir)
+        }</span>
+        
+        // Clean up build directory
+        <span class="cov0" title="0">os.RemoveAll(buildDir)
+        
+        log.Printf("Worker %s completed build %s in %v", ws.ID, request.RequestID, response.BuildDuration)
+        return nil</span>
+}
+
+// GetStatus returns the current worker status
+func (ws *WorkerService) GetStatus(args *struct{}, status *WorkerStatus) error <span class="cov0" title="0">{
+        ws.Mutex.RLock()
+        defer ws.Mutex.RUnlock()
+        
+        *status = WorkerStatus{
+                ID:            ws.ID,
+                ActiveBuilds:  len(ws.ActiveBuilds),
+                QueueLength:   len(ws.BuildQueue),
+                LastPing:      ws.LastPing,
+                BuildDir:      ws.BuildDir,
+                IsHealthy:     time.Since(ws.LastPing) &lt; 5*time.Minute,
+                WorkerType:    ws.Config.WorkerType,
+        }
+        
+        return nil
+}</span>
+
+// WorkerStatus represents the current status of a worker
+type WorkerStatus struct {
+        ID           string    `json:"id"`
+        ActiveBuilds int       `json:"active_builds"`
+        QueueLength  int       `json:"queue_length"`
+        LastPing     time.Time `json:"last_ping"`
+        BuildDir     string    `json:"build_dir"`
+        IsHealthy    bool      `json:"is_healthy"`
+        WorkerType   string    `json:"worker_type"`
+}
+
+// StartServer starts the worker's RPC server
+func (ws *WorkerService) StartServer() error <span class="cov0" title="0">{
+        listener, err := net.Listen("tcp", fmt.Sprintf(":%d", ws.Config.RPCPort))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to start RPC listener: %v", err)
+        }</span>
+        
+        <span class="cov0" title="0">ws.RegisterRPCMethods()
+        
+        go func() </span><span class="cov0" title="0">{
+                for </span><span class="cov0" title="0">{
+                        conn, err := listener.Accept()
+                        if err != nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                        <span class="cov0" title="0">go rpc.ServeConn(conn)</span>
+                }
+        }()
+        
+        <span class="cov0" title="0">log.Printf("Worker %s RPC server listening on port %d", ws.ID, ws.Config.RPCPort)
+        return nil</span>
+}
+
+// runGradleBuild executes the actual Gradle build
+func (ws *WorkerService) runGradleBuild(request types.BuildRequest, response *types.BuildResponse) error <span class="cov0" title="0">{
+        // Prepare Gradle command
+        args := []string{request.TaskName}
+        
+        // Add build options
+        for key, value := range request.BuildOptions </span><span class="cov0" title="0">{
+                args = append(args, fmt.Sprintf("--%s=%s", key, value))
+        }</span>
+        
+        // Create command
+        <span class="cov0" title="0">cmd := exec.Command("gradle", args...)
+        cmd.Dir = request.ProjectPath
+        
+        // Capture output
+        output, err := cmd.CombinedOutput()
+        
+        // Update response metrics
+        response.Metrics = types.BuildMetrics{
+                BuildSteps: []types.BuildStep{
+                        {
+                                Name:     request.TaskName,
+                                Duration: response.BuildDuration,
+                                CacheHit: request.CacheEnabled,
+                        },
+                },
+                TestResults: types.TestResults{
+                        TotalTests: 0,
+                        PassedTests: 0,
+                        FailedTests: 0,
+                },
+        }
+        
+        if err != nil </span><span class="cov0" title="0">{
+                response.ErrorMessage = string(output)
+                return err
+        }</span>
+        
+        <span class="cov0" title="0">return nil</span>
+}
+
+// collectArtifacts collects build artifacts from the build directory
+func (ws *WorkerService) collectArtifacts(buildDir string) []string <span class="cov0" title="0">{
+        var artifacts []string
+        
+        filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+                
+                <span class="cov0" title="0">if !info.IsDir() </span><span class="cov0" title="0">{
+                        relPath, _ := filepath.Rel(buildDir, path)
+                        artifacts = append(artifacts, relPath)
+                }</span>
+                
+                <span class="cov0" title="0">return nil</span>
+        })
+        
+        <span class="cov0" title="0">return artifacts</span>
+}
+
+// Shutdown gracefully shuts down the worker
+func (ws *WorkerService) Shutdown() error <span class="cov0" title="0">{
+        close(ws.BuildQueue)
+        return nil
+}</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

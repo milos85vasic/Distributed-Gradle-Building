@@ -1,0 +1,59 @@
+# Distributed Gradle Building - Worker Dockerfile
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata openjdk17-jdk
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go/go.mod go/go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY go/ ./
+
+# Build the worker binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker worker.go
+
+# Final stage
+FROM alpine:latest
+
+# Install runtime dependencies (including Java for Gradle builds)
+RUN apk --no-cache add ca-certificates tzdata curl openjdk17-jre-headless bash
+
+# Create app user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=builder /app/worker .
+
+# Create necessary directories for Gradle and worker data
+RUN mkdir -p /app/data /app/logs /app/config /app/gradle-home /app/work-dir /app/cache
+
+# Set environment variables for Java/Gradle
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+ENV PATH="$JAVA_HOME/bin:$PATH"
+ENV GRADLE_USER_HOME=/app/gradle-home
+
+# Change ownership
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (worker port will be assigned dynamically)
+EXPOSE 8082-8090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${WORKER_PORT:-8082}/health || exit 1
+
+# Default command (expects config file as argument)
+CMD ["./worker", "/app/config/worker-config.json"]

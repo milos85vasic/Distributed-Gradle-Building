@@ -1,0 +1,195 @@
+version: '3.8'
+
+services:
+  coordinator:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-coordinator:${DOCKER_TAG:-latest}
+    container_name: distributed-gradle-coordinator
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - COORDINATOR_PORT=8080
+      - COORDINATOR_RPC_PORT=8081
+      - LOG_LEVEL=info
+      - GIN_MODE=release
+    volumes:
+      - coordinator_data:/app/data
+      - coordinator_logs:/app/logs
+    networks:
+      - distributed-gradle
+    depends_on:
+      - cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  workers:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-worker:${DOCKER_TAG:-latest}
+    deploy:
+      mode: replicated
+      replicas: 3
+    environment:
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_RPC_PORT=8081
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_BUILDS=5
+      - GIN_MODE=release
+    volumes:
+      - worker_data:/app/data
+      - worker_logs:/app/logs
+      - worker_gradle:/app/gradle-home
+      - worker_cache:/app/cache
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  cache:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-cache:${DOCKER_TAG:-latest}
+    container_name: distributed-gradle-cache
+    ports:
+      - "8083:8083"
+    environment:
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_CACHE_SIZE=50GB
+      - GIN_MODE=release
+    volumes:
+      - cache_data:/app/data/cache
+      - cache_logs:/app/logs
+    networks:
+      - distributed-gradle
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  monitor:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-monitor:${DOCKER_TAG:-latest}
+    container_name: distributed-gradle-monitor
+    ports:
+      - "8084:8084"
+    environment:
+      - MONITOR_PORT=8084
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_PORT=8080
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - GIN_MODE=release
+    volumes:
+      - monitor_data:/app/data
+      - monitor_logs:/app/logs
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Optional: Nginx reverse proxy for load balancing and SSL termination
+  nginx:
+    image: nginx:alpine
+    container_name: distributed-gradle-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - distributed-gradle
+    depends_on:
+      - coordinator
+      - monitor
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+volumes:
+  coordinator_data:
+    driver: local
+  coordinator_logs:
+    driver: local
+  worker_data:
+    driver: local
+  worker_logs:
+    driver: local
+  worker_gradle:
+    driver: local
+  worker_cache:
+    driver: local
+  cache_data:
+    driver: local
+  cache_logs:
+    driver: local
+  monitor_data:
+    driver: local
+  monitor_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  distributed-gradle:
+    driver: bridge

@@ -1,0 +1,199 @@
+version: '3.8'
+
+services:
+  coordinator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.coordinator
+    container_name: distributed-gradle-coordinator
+    ports:
+      - "8080:8080"  # HTTP API
+      - "8081:8081"  # RPC port
+    environment:
+      - COORDINATOR_PORT=8080
+      - COORDINATOR_RPC_PORT=8081
+      - LOG_LEVEL=info
+    volumes:
+      - coordinator_data:/app/data
+      - coordinator_logs:/app/logs
+    networks:
+      - distributed-gradle
+    depends_on:
+      - cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  worker-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: distributed-gradle-worker-1
+    ports:
+      - "8082:8082"
+    environment:
+      - WORKER_ID=worker-1
+      - WORKER_PORT=8082
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_RPC_PORT=8081
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_BUILDS=5
+    volumes:
+      - worker1_data:/app/data
+      - worker1_logs:/app/logs
+      - worker1_gradle:/app/gradle-home
+      - worker1_cache:/app/cache
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: distributed-gradle-worker-2
+    ports:
+      - "8083:8083"
+    environment:
+      - WORKER_ID=worker-2
+      - WORKER_PORT=8083
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_RPC_PORT=8081
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_BUILDS=5
+    volumes:
+      - worker2_data:/app/data
+      - worker2_logs:/app/logs
+      - worker2_gradle:/app/gradle-home
+      - worker2_cache:/app/cache
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: distributed-gradle-worker-3
+    ports:
+      - "8084:8084"
+    environment:
+      - WORKER_ID=worker-3
+      - WORKER_PORT=8084
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_RPC_PORT=8081
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_BUILDS=5
+    volumes:
+      - worker3_data:/app/data
+      - worker3_logs:/app/logs
+      - worker3_gradle:/app/gradle-home
+      - worker3_cache:/app/cache
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cache:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cache
+    container_name: distributed-gradle-cache
+    ports:
+      - "8085:8083"  # Map host port 8085 to container port 8083
+    environment:
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_CACHE_SIZE=10GB
+    volumes:
+      - cache_data:/app/data/cache
+      - cache_logs:/app/logs
+    networks:
+      - distributed-gradle
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.monitor
+    container_name: distributed-gradle-monitor
+    ports:
+      - "8086:8084"  # Map host port 8086 to container port 8084
+    environment:
+      - MONITOR_PORT=8084
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_PORT=8080
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+    volumes:
+      - monitor_data:/app/data
+      - monitor_logs:/app/logs
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  coordinator_data:
+  coordinator_logs:
+  worker1_data:
+  worker1_logs:
+  worker1_gradle:
+  worker1_cache:
+  worker2_data:
+  worker2_logs:
+  worker2_gradle:
+  worker2_cache:
+  worker3_data:
+  worker3_logs:
+  worker3_gradle:
+  worker3_cache:
+  cache_data:
+  cache_logs:
+  monitor_data:
+  monitor_logs:
+
+networks:
+  distributed-gradle:
+    driver: bridge

@@ -1,0 +1,250 @@
+stages:
+  - test
+  - build
+  - deploy
+  - performance
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  GO_VERSION: "1.21"
+  REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_IMAGE_TAG: $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - go/pkg/mod/
+    - .cache/
+
+# Test stage jobs
+unit_tests:
+  stage: test
+  image: golang:${GO_VERSION}
+  before_script:
+    - cd go
+    - go mod download
+    - go mod tidy
+  script:
+    - go test ./coordinatorpkg ./workerpkg ./cachepkg ./monitorpkg -v -race -coverprofile=coverage.out -covermode=atomic
+    - go tool cover -func=coverage.out | tail -1
+    - COVERAGE=$(go tool cover -func=coverage.out | tail -1 | grep -o '[0-9.]*%' | sed 's/%//')
+    - |
+      if (( $(echo "$COVERAGE < 90" | bc -l) )); then
+        echo "Coverage $COVERAGE% is below required 90%"
+        exit 1
+      fi
+    - echo "Coverage $COVERAGE% meets requirements"
+  coverage: '/Coverage: \d+\.\d+%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: go/coverage.out
+    expire_in: 1 week
+
+integration_tests:
+  stage: test
+  image: golang:${GO_VERSION}
+  services:
+    - docker:dind
+  before_script:
+    - cd go
+    - go mod download
+  script:
+    - go test ./tests/integration -v -timeout 60s -coverprofile=integration-coverage.out
+    - go tool cover -func=integration-coverage.out
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: go/integration-coverage.out
+    expire_in: 1 week
+  dependencies:
+    - unit_tests
+
+security_tests:
+  stage: test
+  image: golang:${GO_VERSION}
+  before_script:
+    - cd go
+    - go mod download
+  script:
+    - go test ./tests/security -v -timeout 30s -coverprofile=security-coverage.out
+    - |
+      if command -v gosec &> /dev/null; then
+        echo "Running gosec security scanner..."
+        gosec ./...
+      else
+        echo "gosec not available, skipping security scan"
+      fi
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: go/security-coverage.out
+    expire_in: 1 week
+  dependencies:
+    - unit_tests
+
+# Build stage jobs
+build_binaries:
+  stage: build
+  image: golang:${GO_VERSION}
+  before_script:
+    - cd go
+    - go mod download
+  script:
+    - mkdir -p bin
+    - echo "Building coordinator..."
+    - go build -ldflags="-X main.version=${CI_COMMIT_SHORT_SHA}" -o bin/coordinator main.go
+    - echo "Building worker..."
+    - go build -ldflags="-X main.version=${CI_COMMIT_SHORT_SHA}" -o bin/worker worker.go
+    - echo "Building cache server..."
+    - go build -ldflags="-X main.version=${CI_COMMIT_SHORT_SHA}" -o bin/cache_server cache_server.go
+    - echo "Building monitor..."
+    - go build -ldflags="-X main.version=${CI_COMMIT_SHORT_SHA}" -o bin/monitor monitor.go
+    - echo "Build completed successfully"
+    - ls -la bin/
+  artifacts:
+    paths:
+      - go/bin/
+    expire_in: 1 week
+
+build_docker_images:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker info
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - echo "Building coordinator image..."
+    - docker build -t $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG -f docker/Dockerfile.coordinator .
+    - docker push $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG
+
+    - echo "Building worker image..."
+    - docker build -t $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG -f docker/Dockerfile.worker .
+    - docker push $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG
+
+    - echo "Building cache image..."
+    - docker build -t $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG -f docker/Dockerfile.cache .
+    - docker push $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG
+
+    - echo "Building monitor image..."
+    - docker build -t $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG -f docker/Dockerfile.monitor .
+    - docker push $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG
+
+    - echo "Tagging latest for main branch..."
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "main" ] || [ "$CI_COMMIT_REF_NAME" = "master" ]; then
+        docker tag $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG $REGISTRY_IMAGE/coordinator:latest
+        docker tag $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG $REGISTRY_IMAGE/worker:latest
+        docker tag $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG $REGISTRY_IMAGE/cache:latest
+        docker tag $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG $REGISTRY_IMAGE/monitor:latest
+
+        docker push $REGISTRY_IMAGE/coordinator:latest
+        docker push $REGISTRY_IMAGE/worker:latest
+        docker push $REGISTRY_IMAGE/cache:latest
+        docker push $REGISTRY_IMAGE/monitor:latest
+      fi
+  dependencies:
+    - build_binaries
+
+# Deploy stage jobs
+deploy_staging:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: staging
+    url: https://staging.your-app.com
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "Deploying to staging environment..."
+    - echo "Coordinator image: $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG"
+    - echo "Worker image: $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG"
+    - echo "Cache image: $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG"
+    - echo "Monitor image: $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG"
+    - |
+      # Add your staging deployment commands here
+      # Example: kubectl apply -f k8s/staging/ or helm upgrade
+      echo "Staging deployment commands would go here"
+  dependencies:
+    - build_docker_images
+  only:
+    - develop
+    - main
+    - master
+
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: production
+    url: https://your-app.com
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "Deploying to production environment..."
+    - echo "Coordinator image: $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG"
+    - echo "Worker image: $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG"
+    - echo "Cache image: $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG"
+    - echo "Monitor image: $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG"
+    - |
+      # Add your production deployment commands here
+      # Example: kubectl apply -f k8s/production/ or helm upgrade
+      echo "Production deployment commands would go here"
+  dependencies:
+    - build_docker_images
+    - deploy_staging
+  when: manual
+  only:
+    - main
+    - master
+    - tags
+
+# Performance stage jobs
+performance_tests:
+  stage: performance
+  image: golang:${GO_VERSION}
+  before_script:
+    - cd go
+    - go mod download
+  script:
+    - echo "Running performance tests..."
+    - go test ./tests/performance -v -timeout 120s -bench=. -run=^$ -count=3 | tee performance-bench.txt
+    - echo "Performance test results:"
+    - cat performance-bench.txt
+  artifacts:
+    paths:
+      - go/performance-bench.txt
+    expire_in: 1 month
+  dependencies:
+    - build_binaries
+  only:
+    - main
+    - master
+    - tags
+
+load_tests:
+  stage: performance
+  image: golang:${GO_VERSION}
+  before_script:
+    - cd go
+    - go mod download
+  script:
+    - echo "Running load tests..."
+    - go test ./tests/load -v -timeout 120s
+  dependencies:
+    - build_binaries
+  only:
+    - main
+    - master
+    - tags
+
+# Include additional configuration files
+include:
+  - local: '.gitlab/ci-templates.yml'
+  - local: '.gitlab/ci-deployments.yml'

@@ -956,4 +956,380 @@ collect_ci_metrics() {
 
 ---
 
+## 🆕 Modern CI/CD Integration Templates
+
+### Jenkins Pipeline (Declarative)
+
+The project includes a complete `Jenkinsfile` for modern Jenkins pipelines with Docker support:
+
+```groovy
+// From project root: Jenkinsfile
+pipeline {
+    agent any
+
+    environment {
+        GO_VERSION = '1.21'
+        DOCKER_IMAGE_TAG = "${env.BUILD_NUMBER}"
+        REGISTRY = 'your-registry.com'
+        APP_NAME = 'distributed-gradle-building'
+    }
+
+    stages {
+        stage('Setup Go Environment') {
+            steps {
+                script {
+                    // Install Go if not available
+                    sh '''
+                        if ! command -v go &> /dev/null; then
+                            echo "Installing Go ${GO_VERSION}..."
+                            wget -q https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
+                            sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
+                            export PATH=$PATH:/usr/local/go/bin
+                            echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.bashrc
+                        fi
+                        go version
+                    '''
+                }
+            }
+        }
+
+        stage('Build Binaries') {
+            steps {
+                dir('go') {
+                    sh '''
+                        mkdir -p bin
+                        go build -ldflags="-X main.version=${BUILD_NUMBER}" -o bin/coordinator main.go
+                        go build -ldflags="-X main.version=${BUILD_NUMBER}" -o bin/worker worker.go
+                        go build -ldflags="-X main.version=${BUILD_NUMBER}" -o bin/cache_server cache_server.go
+                        go build -ldflags="-X main.version=${BUILD_NUMBER}" -o bin/monitor monitor.go
+                    '''
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${REGISTRY}/${APP_NAME}-coordinator:${DOCKER_IMAGE_TAG} \\
+                            --build-arg BINARY_PATH=go/bin/coordinator \\
+                            -f docker/Dockerfile.coordinator .
+                    """
+                    // ... additional image builds
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    tag '*'
+                }
+            }
+            steps {
+                script {
+                    timeout(time: 15, unit: 'MINUTES') {
+                        input message: 'Deploy to production?', ok: 'Deploy'
+                    }
+
+                    sh '''
+                        echo "Deploying to production environment..."
+                        # Add your production deployment commands here
+                    '''
+                }
+            }
+        }
+    }
+}
+```
+
+### GitHub Actions Deployment
+
+The project includes comprehensive GitHub Actions workflows:
+
+#### Build & Test Workflow (`.github/workflows/test.yml`)
+- Multi-version Go testing (1.19, 1.20, 1.21)
+- Unit, integration, security, performance, and load tests
+- Code coverage with Codecov integration
+- SonarCloud analysis for main branch
+
+#### Deployment Workflow (`.github/workflows/deploy.yml`)
+```yaml
+# From .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Build and push coordinator image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.coordinator
+          push: true
+          tags: ${{ steps.meta-coordinator.outputs.tags }}
+          labels: ${{ steps.meta-coordinator.outputs.labels }}
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-and-push, deploy-staging]
+    environment: production
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event.release.type == 'published'
+
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+```
+
+### GitLab CI/CD Pipeline
+
+Complete `.gitlab-ci.yml` with Docker support:
+
+```yaml
+# From project root: .gitlab-ci.yml
+stages:
+  - test
+  - build
+  - deploy
+  - performance
+
+variables:
+  DOCKER_DRIVER: overlay2
+  GO_VERSION: "1.21"
+  REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_IMAGE_TAG: $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+
+build_docker_images:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+
+  script:
+    - docker build -t $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG -f docker/Dockerfile.coordinator .
+    - docker build -t $REGISTRY_IMAGE/worker:$DOCKER_IMAGE_TAG -f docker/Dockerfile.worker .
+    - docker build -t $REGISTRY_IMAGE/cache:$DOCKER_IMAGE_TAG -f docker/Dockerfile.cache .
+    - docker build -t $REGISTRY_IMAGE/monitor:$DOCKER_IMAGE_TAG -f docker/Dockerfile.monitor .
+    - docker push $REGISTRY_IMAGE/coordinator:$DOCKER_IMAGE_TAG
+    # ... push other images
+
+deploy_production:
+  stage: deploy
+  environment:
+    name: production
+    url: https://your-app.com
+  when: manual
+  only:
+    - main
+    - master
+    - tags
+
+  script:
+    - echo "Deploying to production environment..."
+    # Add your production deployment commands here
+```
+
+### Docker Containerization
+
+#### Development Setup (`docker/docker-compose.yml`)
+```yaml
+# From docker/docker-compose.yml
+version: '3.8'
+
+services:
+  coordinator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.coordinator
+    ports:
+      - "8080:8080"  # HTTP API
+      - "8081:8081"  # RPC port
+    environment:
+      - COORDINATOR_PORT=8080
+      - COORDINATOR_RPC_PORT=8081
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      - WORKER_ID=worker-1
+      - COORDINATOR_HOST=coordinator
+      - CACHE_HOST=cache
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  cache:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+
+  monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.monitor
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+```
+
+#### Production Setup (`docker/docker-compose.prod.yml`)
+```yaml
+# From docker/docker-compose.prod.yml
+version: '3.8'
+
+services:
+  coordinator:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-coordinator:${DOCKER_TAG:-latest}
+    environment:
+      - COORDINATOR_PORT=8080
+      - LOG_LEVEL=info
+      - GIN_MODE=release
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  workers:
+    image: ${DOCKER_REGISTRY}/distributed-gradle-worker:${DOCKER_TAG:-latest}
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+```
+
+### Dockerfiles
+
+#### Coordinator Dockerfile (`docker/Dockerfile.coordinator`)
+```dockerfile
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go/go.mod go/go.sum ./
+RUN go mod download
+COPY go/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o coordinator main.go
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata curl
+COPY --from=builder /app/coordinator .
+EXPOSE 8080 8081
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/api/status || exit 1
+CMD ["./coordinator"]
+```
+
+#### Worker Dockerfile (`docker/Dockerfile.worker`)
+```dockerfile
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache openjdk17-jdk
+WORKDIR /app
+COPY go/go.mod go/go.sum ./
+RUN go mod download
+COPY go/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker worker.go
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata curl openjdk17-jre-headless bash
+COPY --from=builder /app/worker .
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+EXPOSE 8082-8090
+CMD ["./worker", "/app/config/worker-config.json"]
+```
+
+### Quick Start with Docker
+
+1. **Development Setup**:
+   ```bash
+   cd docker
+   docker-compose up -d
+   ```
+
+2. **Production Deployment**:
+   ```bash
+   export DOCKER_REGISTRY=your-registry.com
+   export DOCKER_TAG=v1.0.0
+   cd docker
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+3. **CI/CD Integration**:
+   - Jenkins: Use the provided `Jenkinsfile`
+   - GitHub Actions: Use `.github/workflows/deploy.yml`
+   - GitLab CI: Use `.gitlab-ci.yml`
+
+### Configuration Examples
+
+#### Environment Variables
+```bash
+# Coordinator
+COORDINATOR_PORT=8080
+COORDINATOR_RPC_PORT=8081
+LOG_LEVEL=info
+
+# Worker
+WORKER_ID=worker-1
+WORKER_PORT=8082
+COORDINATOR_HOST=coordinator
+COORDINATOR_RPC_PORT=8081
+MAX_BUILDS=5
+
+# Cache
+CACHE_PORT=8083
+MAX_CACHE_SIZE=10GB
+
+# Monitor
+MONITOR_PORT=8084
+```
+
+#### Docker Compose Override
+```yaml
+# docker-compose.override.yml
+version: '3.8'
+
+services:
+  coordinator:
+    environment:
+      - LOG_LEVEL=debug
+    ports:
+      - "8080:8080"
+
+  worker-1:
+    environment:
+      - MAX_BUILDS=10
+```
+
+---
+
 **Need CI/CD integration help?** Check the [Monitoring Guide](MONITORING.md) for detailed performance tracking.

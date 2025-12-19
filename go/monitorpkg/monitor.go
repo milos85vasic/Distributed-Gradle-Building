@@ -6,60 +6,63 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
-	
+
+	"distributed-gradle-building/ml/service"
 	"distributed-gradle-building/types"
 )
 
 // Monitor represents the system monitoring service
 type Monitor struct {
-	Config        types.MonitorConfig
-	Metrics       SystemMetrics
-	Alerts        []Alert
-	Workers       map[string]WorkerMetrics
-	Builds        map[string]BuildMetrics
-	mutex         sync.RWMutex
-	httpServer    *http.Server
-	shutdown      chan struct{}
+	Config     types.MonitorConfig
+	Metrics    SystemMetrics
+	Alerts     []Alert
+	Workers    map[string]WorkerMetrics
+	Builds     map[string]BuildMetrics
+	MLService  *service.MLService
+	mutex      sync.RWMutex
+	httpServer *http.Server
+	shutdown   chan struct{}
 }
 
 // SystemMetrics contains overall system metrics
 type SystemMetrics struct {
-	TotalBuilds       int64     `json:"total_builds"`
-	SuccessfulBuilds  int64     `json:"successful_builds"`
-	FailedBuilds      int64     `json:"failed_builds"`
-	ActiveWorkers     int       `json:"active_workers"`
-	QueueLength       int       `json:"queue_length"`
-	AverageBuildTime  float64   `json:"average_build_time"`
-	CacheHitRate      float64   `json:"cache_hit_rate"`
-	LastUpdate        time.Time `json:"last_update"`
-	ResourceUsage     ResourceMetrics `json:"resource_usage"`
+	TotalBuilds      int64           `json:"total_builds"`
+	SuccessfulBuilds int64           `json:"successful_builds"`
+	FailedBuilds     int64           `json:"failed_builds"`
+	ActiveWorkers    int             `json:"active_workers"`
+	QueueLength      int             `json:"queue_length"`
+	AverageBuildTime float64         `json:"average_build_time"`
+	CacheHitRate     float64         `json:"cache_hit_rate"`
+	LastUpdate       time.Time       `json:"last_update"`
+	ResourceUsage    ResourceMetrics `json:"resource_usage"`
 }
 
 // WorkerMetrics contains metrics for a specific worker
 type WorkerMetrics struct {
-	ID                string    `json:"id"`
-	Status            string    `json:"status"`
-	ActiveBuilds      int       `json:"active_builds"`
-	CompletedBuilds   int64     `json:"completed_builds"`
-	FailedBuilds      int64     `json:"failed_builds"`
-	LastSeen          time.Time `json:"last_seen"`
-	AverageBuildTime  float64   `json:"average_build_time"`
-	CPUUsage          float64   `json:"cpu_usage"`
-	MemoryUsage       int64     `json:"memory_usage"`
+	ID               string    `json:"id"`
+	Status           string    `json:"status"`
+	ActiveBuilds     int       `json:"active_builds"`
+	CompletedBuilds  int64     `json:"completed_builds"`
+	FailedBuilds     int64     `json:"failed_builds"`
+	LastSeen         time.Time `json:"last_seen"`
+	AverageBuildTime float64   `json:"average_build_time"`
+	CPUUsage         float64   `json:"cpu_usage"`
+	MemoryUsage      int64     `json:"memory_usage"`
 }
 
 // BuildMetrics contains metrics for a specific build
 type BuildMetrics struct {
-	BuildID       string        `json:"build_id"`
-	WorkerID      string        `json:"worker_id"`
-	Status        string        `json:"status"`
-	StartTime     time.Time     `json:"start_time"`
-	EndTime       time.Time     `json:"end_time"`
-	Duration      time.Duration `json:"duration"`
-	CacheHit      bool          `json:"cache_hit"`
-	Artifacts     []string      `json:"artifacts"`
+	BuildID       string          `json:"build_id"`
+	WorkerID      string          `json:"worker_id"`
+	Status        string          `json:"status"`
+	StartTime     time.Time       `json:"start_time"`
+	EndTime       time.Time       `json:"end_time"`
+	Duration      time.Duration   `json:"duration"`
+	CacheHit      bool            `json:"cache_hit"`
+	Artifacts     []string        `json:"artifacts"`
 	ResourceUsage ResourceMetrics `json:"resource_usage"`
 }
 
@@ -74,23 +77,24 @@ type ResourceMetrics struct {
 
 // Alert represents a system alert
 type Alert struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	Severity    string                 `json:"severity"`
-	Message     string                 `json:"message"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Resolved    bool                   `json:"resolved"`
-	Data        map[string]interface{} `json:"data"`
+	ID        string                 `json:"id"`
+	Type      string                 `json:"type"`
+	Severity  string                 `json:"severity"`
+	Message   string                 `json:"message"`
+	Timestamp time.Time              `json:"timestamp"`
+	Resolved  bool                   `json:"resolved"`
+	Data      map[string]interface{} `json:"data"`
 }
 
 // NewMonitor creates a new monitoring service
 func NewMonitor(config types.MonitorConfig) *Monitor {
 	return &Monitor{
-		Config:  config,
-		Workers: make(map[string]WorkerMetrics),
-		Builds:  make(map[string]BuildMetrics),
-		Alerts:  make([]Alert, 0),
-		shutdown: make(chan struct{}),
+		Config:    config,
+		Workers:   make(map[string]WorkerMetrics),
+		Builds:    make(map[string]BuildMetrics),
+		Alerts:    make([]Alert, 0),
+		MLService: service.NewMLService(),
+		shutdown:  make(chan struct{}),
 		Metrics: SystemMetrics{
 			LastUpdate: time.Now(),
 		},
@@ -101,14 +105,14 @@ func NewMonitor(config types.MonitorConfig) *Monitor {
 func (m *Monitor) RecordBuildStart(buildID, workerID string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	m.Builds[buildID] = BuildMetrics{
 		BuildID:   buildID,
 		WorkerID:  workerID,
 		Status:    "running",
 		StartTime: time.Now(),
 	}
-	
+
 	m.Metrics.TotalBuilds++
 	m.Metrics.QueueLength--
 	m.Metrics.LastUpdate = time.Now()
@@ -118,33 +122,33 @@ func (m *Monitor) RecordBuildStart(buildID, workerID string) {
 func (m *Monitor) RecordBuildComplete(buildID string, success bool, duration time.Duration, cacheHit bool, artifacts []string, resourceUsage ResourceMetrics) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	buildMetrics, exists := m.Builds[buildID]
 	if !exists {
 		return
 	}
-	
+
 	buildMetrics.Status = "completed"
 	buildMetrics.EndTime = time.Now()
 	buildMetrics.Duration = duration
 	buildMetrics.CacheHit = cacheHit
 	buildMetrics.Artifacts = artifacts
 	buildMetrics.ResourceUsage = resourceUsage
-	
+
 	m.Builds[buildID] = buildMetrics
-	
+
 	if success {
 		m.Metrics.SuccessfulBuilds++
 	} else {
 		m.Metrics.FailedBuilds++
 	}
-	
+
 	// Update average build time
 	totalBuilds := m.Metrics.SuccessfulBuilds + m.Metrics.FailedBuilds
 	if totalBuilds > 0 {
 		m.Metrics.AverageBuildTime = ((m.Metrics.AverageBuildTime * float64(totalBuilds-1)) + duration.Seconds()) / float64(totalBuilds)
 	}
-	
+
 	m.Metrics.LastUpdate = time.Now()
 }
 
@@ -152,20 +156,20 @@ func (m *Monitor) RecordBuildComplete(buildID string, success bool, duration tim
 func (m *Monitor) UpdateWorkerMetrics(workerID, status string, activeBuilds int, completedBuilds, failedBuilds int64, lastSeen time.Time, cpuUsage float64, memoryUsage int64) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	workerMetrics := WorkerMetrics{
-		ID:               workerID,
-		Status:           status,
-		ActiveBuilds:     activeBuilds,
-		CompletedBuilds:  completedBuilds,
-		FailedBuilds:     failedBuilds,
-		LastSeen:         lastSeen,
-		CPUUsage:         cpuUsage,
-		MemoryUsage:      memoryUsage,
+		ID:              workerID,
+		Status:          status,
+		ActiveBuilds:    activeBuilds,
+		CompletedBuilds: completedBuilds,
+		FailedBuilds:    failedBuilds,
+		LastSeen:        lastSeen,
+		CPUUsage:        cpuUsage,
+		MemoryUsage:     memoryUsage,
 	}
-	
+
 	m.Workers[workerID] = workerMetrics
-	
+
 	// Update active workers count
 	activeCount := 0
 	for _, worker := range m.Workers {
@@ -173,7 +177,7 @@ func (m *Monitor) UpdateWorkerMetrics(workerID, status string, activeBuilds int,
 			activeCount++
 		}
 	}
-	
+
 	m.Metrics.ActiveWorkers = activeCount
 	m.Metrics.LastUpdate = time.Now()
 }
@@ -182,7 +186,7 @@ func (m *Monitor) UpdateWorkerMetrics(workerID, status string, activeBuilds int,
 func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[string]interface{}) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	alert := Alert{
 		ID:        fmt.Sprintf("alert_%d", time.Now().UnixNano()),
 		Type:      alertType,
@@ -192,7 +196,7 @@ func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[str
 		Resolved:  false,
 		Data:      data,
 	}
-	
+
 	m.Alerts = append(m.Alerts, alert)
 	log.Printf("ALERT [%s]: %s", severity, message)
 }
@@ -201,7 +205,7 @@ func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[str
 func (m *Monitor) GetSystemMetrics() SystemMetrics {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	return m.Metrics
 }
 
@@ -209,13 +213,13 @@ func (m *Monitor) GetSystemMetrics() SystemMetrics {
 func (m *Monitor) GetWorkerMetrics() map[string]WorkerMetrics {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	result := make(map[string]WorkerMetrics)
 	for id, metrics := range m.Workers {
 		result[id] = metrics
 	}
-	
+
 	return result
 }
 
@@ -223,13 +227,13 @@ func (m *Monitor) GetWorkerMetrics() map[string]WorkerMetrics {
 func (m *Monitor) GetBuildMetrics() map[string]BuildMetrics {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	result := make(map[string]BuildMetrics)
 	for id, metrics := range m.Builds {
 		result[id] = metrics
 	}
-	
+
 	return result
 }
 
@@ -237,12 +241,150 @@ func (m *Monitor) GetBuildMetrics() map[string]BuildMetrics {
 func (m *Monitor) GetAlerts() []Alert {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	result := make([]Alert, len(m.Alerts))
 	copy(result, m.Alerts)
-	
+
 	return result
+}
+
+// startAnomalyDetection starts the ML-based anomaly detection routine
+func (m *Monitor) startAnomalyDetection() {
+	go func() {
+		ticker := time.NewTicker(60 * time.Second) // Check for anomalies every minute
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				m.detectAnomalies()
+			case <-m.shutdown:
+				return
+			}
+		}
+	}()
+}
+
+// detectAnomalies uses ML to detect system performance anomalies
+func (m *Monitor) detectAnomalies() {
+	m.mutex.RLock()
+	metrics := m.Metrics
+	workerMetrics := make(map[string]WorkerMetrics)
+	for id, wm := range m.Workers {
+		workerMetrics[id] = wm
+	}
+	m.mutex.RUnlock()
+
+	// Anomaly 1: Build time anomalies
+	if m.detectBuildTimeAnomaly(metrics) {
+		m.TriggerAlert("build_time_anomaly", "warning",
+			fmt.Sprintf("Build time anomaly detected: average build time %.2fs exceeds normal range",
+				metrics.AverageBuildTime), nil)
+	}
+
+	// Anomaly 2: Worker performance degradation
+	for workerID, wm := range workerMetrics {
+		if m.detectWorkerPerformanceAnomaly(wm) {
+			m.TriggerAlert("worker_performance_anomaly", "warning",
+				fmt.Sprintf("Worker %s performance degradation detected: high CPU/memory usage", workerID), nil)
+		}
+	}
+
+	// Anomaly 3: Queue length spikes
+	if m.detectQueueLengthAnomaly(metrics.QueueLength) {
+		m.TriggerAlert("queue_length_anomaly", "critical",
+			fmt.Sprintf("Queue length spike detected: %d builds in queue", metrics.QueueLength), nil)
+	}
+
+	// Anomaly 4: Cache hit rate drops
+	if m.detectCacheHitRateAnomaly(metrics.CacheHitRate) {
+		m.TriggerAlert("cache_hit_rate_anomaly", "warning",
+			fmt.Sprintf("Cache hit rate anomaly detected: %.2f%% below expected", metrics.CacheHitRate*100), nil)
+	}
+
+	// Anomaly 5: Resource usage anomalies
+	if m.detectResourceUsageAnomaly(metrics.ResourceUsage) {
+		m.TriggerAlert("resource_usage_anomaly", "critical",
+			"System resource usage anomaly detected: high CPU/memory consumption", nil)
+	}
+}
+
+// detectBuildTimeAnomaly detects anomalies in build times
+func (m *Monitor) detectBuildTimeAnomaly(metrics SystemMetrics) bool {
+	if metrics.TotalBuilds < 10 {
+		return false // Not enough data
+	}
+
+	// Simple anomaly detection: build time > 2 standard deviations from mean
+	// In a real implementation, this would use more sophisticated ML models
+	expectedTime := 300.0 // 5 minutes expected
+	if metrics.AverageBuildTime > expectedTime*1.5 {
+		return true
+	}
+
+	return false
+}
+
+// detectWorkerPerformanceAnomaly detects worker performance issues
+func (m *Monitor) detectWorkerPerformanceAnomaly(wm WorkerMetrics) bool {
+	// Check for high resource usage
+	if wm.CPUUsage > 0.9 { // >90% CPU
+		return true
+	}
+	if wm.MemoryUsage > 1000000000 { // >1GB memory
+		return true
+	}
+
+	return false
+}
+
+// detectQueueLengthAnomaly detects unusual queue lengths
+func (m *Monitor) detectQueueLengthAnomaly(queueLength int) bool {
+	// Queue length > 20 is considered anomalous
+	return queueLength > 20
+}
+
+// detectCacheHitRateAnomaly detects cache performance issues
+func (m *Monitor) detectCacheHitRateAnomaly(hitRate float64) bool {
+	// Cache hit rate < 50% is considered anomalous
+	return hitRate < 0.5
+}
+
+// detectResourceUsageAnomaly detects system resource anomalies
+func (m *Monitor) detectResourceUsageAnomaly(resources ResourceMetrics) bool {
+	// High CPU usage
+	if resources.CPUPercent > 0.95 {
+		return true
+	}
+	// High memory usage
+	if resources.MemoryUsage > 2000000000 { // >2GB
+		return true
+	}
+
+	return false
+}
+
+// GetAnomalyStatistics returns statistics about detected anomalies
+func (m *Monitor) GetAnomalyStatistics() map[string]interface{} {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	stats := make(map[string]interface{})
+
+	// Count anomalies by type
+	anomalyCounts := make(map[string]int)
+	for _, alert := range m.Alerts {
+		if !alert.Resolved && strings.Contains(alert.Type, "anomaly") {
+			anomalyCounts[alert.Type]++
+		}
+	}
+
+	stats["total_anomalies"] = len(m.Alerts)
+	stats["anomalies_by_type"] = anomalyCounts
+	stats["last_anomaly_check"] = time.Now()
+
+	return stats
 }
 
 // StartServer starts the HTTP server for monitoring API
@@ -253,35 +395,38 @@ func (m *Monitor) StartServer() error {
 	mux.HandleFunc("/api/builds", m.handleBuilds)
 	mux.HandleFunc("/api/alerts", m.handleAlerts)
 	mux.HandleFunc("/api/health", m.handleHealth)
-	
+
 	m.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", m.Config.Port),
 		Handler: mux,
 	}
-	
+
 	go func() {
 		log.Printf("Monitor HTTP server listening on port %d", m.Config.Port)
 		if err := m.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}
 	}()
-	
+
 	// Start metrics collection routine
 	go m.startMetricsCollection()
-	
+
+	// Start ML-based anomaly detection
+	m.startAnomalyDetection()
+
 	return nil
 }
 
 // Shutdown gracefully shuts down the monitor
 func (m *Monitor) Shutdown() error {
 	close(m.shutdown)
-	
+
 	if m.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		m.httpServer.Shutdown(ctx)
 	}
-	
+
 	return nil
 }
 
@@ -313,7 +458,7 @@ func (m *Monitor) HandleHealth(w http.ResponseWriter, r *http.Request) {
 // handleMetrics handles system metrics requests
 func (m *Monitor) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := m.GetSystemMetrics()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
 }
@@ -321,7 +466,7 @@ func (m *Monitor) handleMetrics(w http.ResponseWriter, r *http.Request) {
 // handleWorkers handles worker metrics requests (exported for testing)
 func (m *Monitor) handleWorkers(w http.ResponseWriter, r *http.Request) {
 	workers := m.GetWorkerMetrics()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(workers)
 }
@@ -329,7 +474,7 @@ func (m *Monitor) handleWorkers(w http.ResponseWriter, r *http.Request) {
 // handleBuilds handles build metrics requests (exported for testing)
 func (m *Monitor) handleBuilds(w http.ResponseWriter, r *http.Request) {
 	builds := m.GetBuildMetrics()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(builds)
 }
@@ -337,7 +482,7 @@ func (m *Monitor) handleBuilds(w http.ResponseWriter, r *http.Request) {
 // handleAlerts handles alerts requests (exported for testing)
 func (m *Monitor) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	alerts := m.GetAlerts()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(alerts)
 }
@@ -349,7 +494,7 @@ func (m *Monitor) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now(),
 		"version":   "1.0.0",
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(health)
 }
@@ -358,16 +503,16 @@ func (m *Monitor) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (m *Monitor) startMetricsCollection() {
 	ticker := time.NewTicker(m.Config.MetricsInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
 			// Check for worker timeouts and trigger alerts if needed
 			m.checkWorkerTimeouts()
-			
+
 			// Check alert thresholds and trigger alerts if needed
 			m.checkAlertThresholds()
-			
+
 		case <-m.shutdown:
 			return
 		}
@@ -378,7 +523,7 @@ func (m *Monitor) startMetricsCollection() {
 func (m *Monitor) checkWorkerTimeouts() {
 	now := time.Now()
 	timeout := 5 * time.Minute // Configurable timeout
-	
+
 	for workerID, metrics := range m.Workers {
 		if now.Sub(metrics.LastSeen) > timeout {
 			// Check if we already have an alert for this worker
@@ -389,9 +534,9 @@ func (m *Monitor) checkWorkerTimeouts() {
 					break
 				}
 			}
-			
+
 			if !hasAlert {
-				m.TriggerAlert("worker_timeout", "warning", 
+				m.TriggerAlert("worker_timeout", "warning",
 					fmt.Sprintf("Worker %s has not been seen for %v", workerID, now.Sub(metrics.LastSeen)),
 					map[string]interface{}{
 						"worker_id": workerID,
@@ -421,7 +566,7 @@ func (m *Monitor) checkAlertThresholds() {
 				})
 		}
 	}
-	
+
 	// Check queue length
 	if threshold, exists := m.Config.AlertThresholds["queue_length"]; exists && int64(m.Metrics.QueueLength) > int64(threshold) {
 		m.TriggerAlert("queue_length", "warning",

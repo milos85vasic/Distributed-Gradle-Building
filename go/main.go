@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -17,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"distributed-gradle-building/ml/service"
 	"distributed-gradle-building/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -40,10 +42,12 @@ type BuildCoordinator struct {
 	WorkerPool   *WorkerPool
 	BuildQueue   chan types.BuildRequest
 	ActiveBuilds map[string]chan types.BuildResponse
+	MLService    *service.MLService
 	mutex        sync.RWMutex
 	httpServer   *http.Server
 	rpcServer    *rpc.Server
 	listener     net.Listener
+	shutdown     chan struct{}
 }
 
 // Prometheus metrics for coordinator
@@ -94,6 +98,8 @@ func NewBuildCoordinator(maxWorkers int) *BuildCoordinator {
 		WorkerPool:   NewWorkerPool(maxWorkers),
 		BuildQueue:   make(chan types.BuildRequest, 100),
 		ActiveBuilds: make(map[string]chan types.BuildResponse),
+		MLService:    service.NewMLService(),
+		shutdown:     make(chan struct{}),
 	}
 
 	// Initialize RPC server
@@ -245,14 +251,24 @@ func (bc *BuildCoordinator) countCompiledFiles(projectPath string) int {
 
 // ProcessBuild processes a build request
 func (bc *BuildCoordinator) ProcessBuild(request types.BuildRequest) types.BuildResponse {
-	// Try to get an available worker with retry mechanism
+	// Get ML predictions for failure risk assessment
+	predictions := bc.MLService.GetBuildInsights(request.ProjectPath, request.TaskName, request.BuildOptions)
+
+	// Handle high-risk builds with mitigation strategies
+	if predictions.FailureRisk > 0.7 {
+		log.Printf("High failure risk detected for build %s (%.2f), applying mitigation strategies",
+			request.RequestID, predictions.FailureRisk)
+		return bc.processHighRiskBuild(request, predictions)
+	}
+
+	// Try to get the best available worker using ML predictions
 	var worker *types.Worker
 	var err error
 
 	for retry := 0; retry < 3; retry++ {
-		worker, err = bc.WorkerPool.GetAvailableWorker("gradle")
+		worker, err = bc.selectBestWorkerForBuild(request)
 		if err == nil {
-			break // Found available worker
+			break // Found suitable worker
 		}
 
 		if retry < 2 {
@@ -324,6 +340,347 @@ func (bc *BuildCoordinator) ProcessBuild(request types.BuildRequest) types.Build
 	}
 }
 
+// processHighRiskBuild handles builds with high failure risk using mitigation strategies
+func (bc *BuildCoordinator) processHighRiskBuild(request types.BuildRequest, predictions service.PredictionResult) types.BuildResponse {
+	log.Printf("Applying failure mitigation for high-risk build %s", request.RequestID)
+
+	// Strategy 1: Select most reliable worker (with best historical success rate)
+	worker, err := bc.selectMostReliableWorkerForBuild(request)
+	if err != nil {
+		return types.BuildResponse{
+			Success:      false,
+			ErrorMessage: fmt.Sprintf("No reliable workers available for high-risk build: %v", err),
+			RequestID:    request.RequestID,
+			Timestamp:    time.Now(),
+		}
+	}
+
+	// Mark worker as busy
+	bc.WorkerPool.UpdateWorkerStatus(worker.ID, "busy")
+	defer bc.WorkerPool.UpdateWorkerStatus(worker.ID, "idle")
+
+	startTime := time.Now()
+
+	// Strategy 2: Enhanced monitoring and logging
+	log.Printf("Starting high-risk build %s on reliable worker %s", request.RequestID, worker.ID)
+
+	// Execute build with enhanced error handling
+	cmd := exec.Command("gradle", request.TaskName)
+	cmd.Dir = request.ProjectPath
+	cmd.Env = append(os.Environ(),
+		"GRADLE_OPTS=-Xmx2g -XX:+HeapDumpOnOutOfMemoryError",            // More memory for stability
+		fmt.Sprintf("BUILD_FAILURE_RISK=%.2f", predictions.FailureRisk), // Pass risk to build
+	)
+
+	if request.CacheEnabled {
+		cmd.Env = append(cmd.Env, "GRADLE_USER_HOME=/tmp/gradle-cache")
+	}
+
+	output, err := cmd.CombinedOutput()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		buildRequestsTotal.WithLabelValues("failed").Inc()
+		buildDuration.WithLabelValues("failed").Observe(duration.Seconds())
+
+		// Strategy 3: Detailed failure analysis and reporting
+		failureAnalysis := bc.analyzeBuildFailure(string(output), predictions)
+		log.Printf("High-risk build %s failed: %s", request.RequestID, failureAnalysis)
+
+		return types.BuildResponse{
+			Success:       false,
+			WorkerID:      worker.ID,
+			BuildDuration: duration,
+			ErrorMessage:  fmt.Sprintf("High-risk build failed: %v\nFailure Analysis: %s\nOutput: %s", err, failureAnalysis, string(output)),
+			RequestID:     request.RequestID,
+			Timestamp:     time.Now(),
+		}
+	}
+
+	worker.BuildCount++
+
+	// Calculate metrics
+	cacheHits, totalRequests := bc.calculateCacheMetrics(request.ProjectPath)
+	compiledFiles := bc.countCompiledFiles(request.ProjectPath)
+
+	buildRequestsTotal.WithLabelValues("successful").Inc()
+	buildDuration.WithLabelValues("successful").Observe(duration.Seconds())
+
+	log.Printf("High-risk build %s completed successfully on reliable worker %s", request.RequestID, worker.ID)
+
+	return types.BuildResponse{
+		Success:       true,
+		WorkerID:      worker.ID,
+		BuildDuration: duration,
+		Artifacts:     bc.findArtifacts(request.ProjectPath),
+		RequestID:     request.RequestID,
+		Timestamp:     time.Now(),
+		Metrics: types.BuildMetrics{
+			CacheHitRate:  float64(cacheHits) / float64(totalRequests),
+			CompiledFiles: compiledFiles,
+		},
+	}
+}
+
+// selectMostReliableWorkerForBuild selects the most reliable worker for high-risk builds
+func (bc *BuildCoordinator) selectMostReliableWorkerForBuild(request types.BuildRequest) (*types.Worker, error) {
+	bc.WorkerPool.WorkerPool.Mutex.RLock()
+	defer bc.WorkerPool.WorkerPool.Mutex.RUnlock()
+
+	var bestWorker *types.Worker
+	var bestReliability float64 = -1
+
+	for _, worker := range bc.WorkerPool.WorkerPool.Workers {
+		if worker.Status != "idle" {
+			continue
+		}
+
+		// Check capabilities
+		hasCapability := false
+		for _, capability := range worker.Capabilities {
+			if capability == request.TaskName || capability == "gradle" || capability == "all" {
+				hasCapability = true
+				break
+			}
+		}
+		if !hasCapability {
+			continue
+		}
+
+		// Calculate reliability score based on build history
+		reliability := bc.calculateWorkerReliability(worker)
+		if reliability > bestReliability {
+			bestReliability = reliability
+			bestWorker = worker
+		}
+	}
+
+	if bestWorker == nil {
+		return nil, fmt.Errorf("no reliable workers available")
+	}
+
+	log.Printf("Selected most reliable worker %s (reliability: %.2f) for high-risk build", bestWorker.ID, bestReliability)
+	return bestWorker, nil
+}
+
+// calculateWorkerReliability calculates a worker's reliability score
+func (bc *BuildCoordinator) calculateWorkerReliability(worker *types.Worker) float64 {
+	if worker.BuildCount == 0 {
+		return 0.5 // Neutral score for new workers
+	}
+
+	// This is a simplified reliability calculation
+	// In production, you'd track success rates per worker
+	successRate := 0.8 // Placeholder - would be calculated from actual metrics
+
+	// Factor in recent performance and system health
+	return successRate
+}
+
+// analyzeBuildFailure provides detailed analysis of build failures
+func (bc *BuildCoordinator) analyzeBuildFailure(output string, predictions service.PredictionResult) string {
+	analysis := "Build failure analysis:\n"
+
+	// Check for common failure patterns
+	if strings.Contains(output, "OutOfMemoryError") {
+		analysis += "- Memory exhaustion detected. Consider increasing heap size.\n"
+	}
+	if strings.Contains(output, "Compilation failed") {
+		analysis += "- Compilation errors detected. Check source code for syntax issues.\n"
+	}
+	if strings.Contains(output, "Test failed") {
+		analysis += "- Test failures detected. Review test cases and assertions.\n"
+	}
+	if strings.Contains(output, "Dependency resolution") {
+		analysis += "- Dependency issues detected. Check artifact repositories and network connectivity.\n"
+	}
+
+	analysis += fmt.Sprintf("- Predicted failure risk was: %.2f\n", predictions.FailureRisk)
+	analysis += fmt.Sprintf("- Suggested resource allocation: CPU=%.1f, Memory=%.1f, Disk=%.1f\n",
+		predictions.ResourceNeeds.CPU, predictions.ResourceNeeds.Memory, predictions.ResourceNeeds.Disk)
+
+	return analysis
+}
+
+// selectBestWorkerForBuild selects the most suitable worker for a build using ML predictions
+func (bc *BuildCoordinator) selectBestWorkerForBuild(request types.BuildRequest) (*types.Worker, error) {
+	bc.WorkerPool.WorkerPool.Mutex.RLock()
+	defer bc.WorkerPool.WorkerPool.Mutex.RUnlock()
+
+	// Get ML predictions for this build
+	predictions := bc.MLService.GetBuildInsights(request.ProjectPath, request.TaskName, request.BuildOptions)
+
+	var bestWorker *types.Worker
+	var bestScore float64 = -1
+
+	// Score each available worker
+	for _, worker := range bc.WorkerPool.WorkerPool.Workers {
+		if worker.Status != "idle" {
+			continue // Skip busy workers
+		}
+
+		// Check if worker has required capabilities
+		hasCapability := false
+		for _, capability := range worker.Capabilities {
+			if capability == request.TaskName || capability == "gradle" || capability == "all" {
+				hasCapability = true
+				break
+			}
+		}
+		if !hasCapability {
+			continue
+		}
+
+		// Calculate worker score based on ML predictions
+		score := bc.calculateWorkerScore(worker, predictions)
+
+		if score > bestScore {
+			bestScore = score
+			bestWorker = worker
+		}
+	}
+
+	if bestWorker == nil {
+		return nil, fmt.Errorf("no suitable workers available for build %s", request.RequestID)
+	}
+
+	return bestWorker, nil
+}
+
+// calculateWorkerScore calculates how suitable a worker is for a build based on ML predictions
+func (bc *BuildCoordinator) calculateWorkerScore(worker *types.Worker, predictions service.PredictionResult) float64 {
+	score := 0.0
+
+	// Base score for being available
+	score += 10.0
+
+	// Factor in predicted resource needs vs worker capabilities
+	// This is a simplified scoring - in production you'd have more sophisticated logic
+	resourceFit := 1.0 - (math.Abs(predictions.ResourceNeeds.CPU-0.5)+math.Abs(predictions.ResourceNeeds.Memory-0.5))/2.0
+	score += resourceFit * 5.0
+
+	// Factor in cache hit rate prediction (higher cache hit rate = better score)
+	score += predictions.CacheHitRate * 3.0
+
+	// Factor in failure risk (lower risk = better score)
+	score += (1.0 - predictions.FailureRisk) * 2.0
+
+	// Factor in worker performance history
+	if worker.BuildCount > 0 {
+		// Prefer workers with good track record (this would be expanded with real metrics)
+		score += 1.0
+	}
+
+	return score
+}
+
+// startAutoScaling starts the auto-scaling monitoring goroutine
+func (bc *BuildCoordinator) startAutoScaling() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second) // Check scaling every 30 seconds
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				bc.checkAndPerformScaling()
+			case <-bc.shutdown:
+				return
+			}
+		}
+	}()
+}
+
+// checkAndPerformScaling checks if scaling is needed and performs the action
+func (bc *BuildCoordinator) checkAndPerformScaling() {
+	bc.mutex.RLock()
+	queueLength := len(bc.BuildQueue)
+	activeBuilds := len(bc.ActiveBuilds)
+	bc.mutex.RUnlock()
+
+	bc.WorkerPool.WorkerPool.Mutex.RLock()
+	currentWorkers := len(bc.WorkerPool.WorkerPool.Workers)
+	busyWorkers := 0
+	avgCPULoad := 0.0
+	workerCount := 0
+
+	for _, worker := range bc.WorkerPool.WorkerPool.Workers {
+		if worker.Status == "busy" {
+			busyWorkers++
+		}
+		// In a real implementation, you'd collect actual CPU metrics
+		// For now, estimate based on busy/idle status
+		if worker.Status == "busy" {
+			avgCPULoad += 0.8 // Assume busy workers are at 80% CPU
+		} else {
+			avgCPULoad += 0.2 // Assume idle workers are at 20% CPU
+		}
+		workerCount++
+	}
+
+	if workerCount > 0 {
+		avgCPULoad /= float64(workerCount)
+	}
+	bc.WorkerPool.WorkerPool.Mutex.RUnlock()
+
+	// Get scaling recommendation from ML service
+	scalingAdvice := bc.MLService.PredictScalingNeeds(queueLength, avgCPULoad, currentWorkers)
+
+	log.Printf("Scaling check: queue=%d, active=%d, workers=%d/%d, avg_cpu=%.2f, recommendation=%s (%d workers)",
+		queueLength, activeBuilds, busyWorkers, currentWorkers, avgCPULoad,
+		scalingAdvice.Action, scalingAdvice.WorkersNeeded)
+
+	// Perform scaling action
+	switch scalingAdvice.Action {
+	case "scale_up":
+		bc.performScaleUp(scalingAdvice.WorkersNeeded - currentWorkers)
+	case "scale_down":
+		bc.performScaleDown(currentWorkers - scalingAdvice.WorkersNeeded)
+	case "maintain":
+		// Do nothing
+	}
+}
+
+// performScaleUp adds new workers to the pool
+func (bc *BuildCoordinator) performScaleUp(workersToAdd int) {
+	if workersToAdd <= 0 {
+		return
+	}
+
+	log.Printf("Scaling up: adding %d workers", workersToAdd)
+
+	// In a real implementation, this would provision new worker instances
+	// For now, we'll just log the scaling action
+	for i := 0; i < workersToAdd; i++ {
+		workerID := fmt.Sprintf("auto-scaled-worker-%d-%d", time.Now().Unix(), i)
+		log.Printf("Would provision new worker: %s", workerID)
+		// TODO: Implement actual worker provisioning logic
+	}
+}
+
+// performScaleDown removes workers from the pool
+func (bc *BuildCoordinator) performScaleDown(workersToRemove int) {
+	if workersToRemove <= 0 {
+		return
+	}
+
+	log.Printf("Scaling down: removing %d workers", workersToRemove)
+
+	// In a real implementation, this would gracefully shut down workers
+	// For now, we'll just log the scaling action
+	bc.WorkerPool.WorkerPool.Mutex.Lock()
+	defer bc.WorkerPool.WorkerPool.Mutex.Unlock()
+
+	removed := 0
+	for workerID, worker := range bc.WorkerPool.WorkerPool.Workers {
+		if worker.Status == "idle" && removed < workersToRemove {
+			log.Printf("Would shut down idle worker: %s", workerID)
+			// TODO: Implement actual worker shutdown logic
+			removed++
+		}
+	}
+}
+
 // findArtifacts finds build artifacts in the project directory
 func (bc *BuildCoordinator) findArtifacts(projectPath string) []string {
 	var artifacts []string
@@ -378,26 +735,80 @@ func (bc *BuildCoordinator) StartRPCServer(port int) error {
 
 	log.Printf("Starting RPC server on port %d", port)
 	go bc.processBuildQueue()
+	go bc.startAutoScaling() // Start auto-scaling monitoring
 	go bc.rpcServer.Accept(bc.listener)
 
 	return nil
 }
 
-// processBuildQueue processes queued build requests
+// processBuildQueue processes queued build requests with ML-based prioritization
 func (bc *BuildCoordinator) processBuildQueue() {
-	for request := range bc.BuildQueue {
-		go func(req types.BuildRequest) {
-			response := bc.ProcessBuild(req)
+	// Use a priority queue to process builds based on ML predictions
+	buildQueue := make(chan types.BuildRequest, 100)
 
-			bc.mutex.Lock()
-			if responseChan, exists := bc.ActiveBuilds[req.RequestID]; exists {
-				responseChan <- response
-				delete(bc.ActiveBuilds, req.RequestID)
-				activeBuilds.Set(float64(len(bc.ActiveBuilds)))
+	go func() {
+		for request := range bc.BuildQueue {
+			// Calculate priority score for the build
+			priority := bc.calculateBuildPriority(request)
+
+			// For now, we'll process immediately if priority is high, otherwise queue
+			// In a full implementation, you'd use a proper priority queue
+			if priority > 7.0 { // High priority builds
+				go bc.processBuildWithPriority(request, priority)
+			} else {
+				select {
+				case buildQueue <- request:
+				default:
+					// Queue full, process immediately
+					go bc.processBuildWithPriority(request, priority)
+				}
 			}
-			bc.mutex.Unlock()
-		}(request)
+		}
+	}()
+
+	// Process lower priority builds from the secondary queue
+	for request := range buildQueue {
+		go bc.processBuildWithPriority(request, bc.calculateBuildPriority(request))
 	}
+}
+
+// processBuildWithPriority processes a build with priority logging
+func (bc *BuildCoordinator) processBuildWithPriority(request types.BuildRequest, priority float64) {
+	log.Printf("Processing build %s with priority %.2f", request.RequestID, priority)
+	response := bc.ProcessBuild(request)
+
+	bc.mutex.Lock()
+	if responseChan, exists := bc.ActiveBuilds[request.RequestID]; exists {
+		responseChan <- response
+		delete(bc.ActiveBuilds, request.RequestID)
+		activeBuilds.Set(float64(len(bc.ActiveBuilds)))
+	}
+	bc.mutex.Unlock()
+}
+
+// calculateBuildPriority calculates a priority score for a build based on ML predictions
+func (bc *BuildCoordinator) calculateBuildPriority(request types.BuildRequest) float64 {
+	predictions := bc.MLService.GetBuildInsights(request.ProjectPath, request.TaskName, request.BuildOptions)
+
+	score := 5.0 // Base priority
+
+	// Higher priority for builds with high failure risk (need to fail fast)
+	score += predictions.FailureRisk * 3.0
+
+	// Higher priority for builds predicted to be short (quick wins)
+	if predictions.PredictedTime < 2*time.Minute {
+		score += 2.0
+	}
+
+	// Lower priority for builds predicted to be very long (save resources for shorter builds)
+	if predictions.PredictedTime > 10*time.Minute {
+		score -= 1.0
+	}
+
+	// Factor in cache hit rate (higher hit rate = higher priority)
+	score += predictions.CacheHitRate * 1.0
+
+	return math.Max(0.0, math.Min(10.0, score)) // Clamp between 0-10
 }
 
 // HTTP Handlers

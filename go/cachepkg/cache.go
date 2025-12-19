@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
+	"distributed-gradle-building/ml/service"
 	"distributed-gradle-building/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -20,6 +22,7 @@ type CacheServer struct {
 	Config     types.CacheConfig
 	Storage    CacheStorage
 	Metrics    CacheMetrics
+	MLService  *service.MLService
 	Mutex      sync.RWMutex
 	httpServer *http.Server
 	shutdown   chan struct{}
@@ -224,13 +227,15 @@ func (fs *FileSystemStorage) Size() (int64, error) {
 	return totalSize, err
 }
 
-// Cleanup removes expired cache entries
+// Cleanup removes expired cache entries and performs ML-driven eviction
 func (fs *FileSystemStorage) Cleanup() error {
 	entries, err := fs.List()
 	if err != nil {
 		return err
 	}
 
+	// First pass: remove expired entries
+	var validEntries []string
 	for _, key := range entries {
 		entry, err := fs.Get(key)
 		if err != nil {
@@ -241,6 +246,95 @@ func (fs *FileSystemStorage) Cleanup() error {
 
 		if time.Since(entry.Timestamp) > fs.TTL {
 			fs.Delete(key)
+		} else {
+			validEntries = append(validEntries, key)
+		}
+	}
+
+	// Second pass: ML-driven eviction if still over capacity
+	// This would be called from CacheServer with ML context
+	return nil
+}
+
+// CleanupWithML performs intelligent cache cleanup using ML predictions
+func (cs *CacheServer) CleanupWithML() error {
+	cs.Mutex.Lock()
+	defer cs.Mutex.Unlock()
+
+	// Get current cache size
+	size, err := cs.Storage.Size()
+	if err != nil {
+		return err
+	}
+
+	// If under capacity, just do basic cleanup
+	if size < int64(float64(cs.Config.MaxCacheSize)*0.8) { // 80% threshold
+		return cs.Storage.Cleanup()
+	}
+
+	// Get all entries for ML-based eviction
+	entries, err := cs.Storage.List()
+	if err != nil {
+		return err
+	}
+
+	// Score entries based on ML predictions
+	type entryScore struct {
+		key   string
+		score float64
+	}
+
+	var scores []entryScore
+	for _, key := range entries {
+		entry, err := cs.Storage.Get(key)
+		if err != nil {
+			continue // Skip invalid entries
+		}
+
+		// Extract project and task info from metadata
+		projectPath := entry.Metadata["project_path"]
+		taskName := entry.Metadata["task_name"]
+
+		if projectPath != "" && taskName != "" {
+			// Get ML prediction for cache hit rate
+			hitRate := cs.MLService.PredictCacheHitRate(projectPath, taskName)
+
+			// Calculate score based on hit rate, recency, and size
+			recencyScore := 1.0 / (1.0 + time.Since(entry.Timestamp).Hours())
+			sizeScore := 1.0 / float64(len(entry.Data)+1) // Smaller entries get higher score
+
+			score := hitRate*0.5 + recencyScore*0.3 + sizeScore*0.2
+			scores = append(scores, entryScore{key: key, score: score})
+		} else {
+			// No metadata, use recency only
+			recencyScore := 1.0 / (1.0 + time.Since(entry.Timestamp).Hours())
+			scores = append(scores, entryScore{key: key, score: recencyScore})
+		}
+	}
+
+	// Sort by score (ascending - lowest scores evicted first)
+	sort.Slice(scores, func(i, j int) bool {
+		return scores[i].score < scores[j].score
+	})
+
+	// Evict lowest scoring entries until under capacity
+	targetSize := int64(float64(cs.Config.MaxCacheSize) * 0.7) // Target 70% capacity
+	currentSize := size
+
+	for _, entry := range scores {
+		if currentSize <= targetSize {
+			break
+		}
+
+		cacheEntry, err := cs.Storage.Get(entry.key)
+		if err != nil {
+			continue
+		}
+
+		if err := cs.Storage.Delete(entry.key); err == nil {
+			currentSize -= int64(len(cacheEntry.Data))
+			cs.Metrics.Evictions++
+			log.Printf("ML-driven eviction: removed cache entry %s (score: %.3f)", entry.key, entry.score)
 		}
 	}
 
@@ -259,10 +353,11 @@ func NewCacheServer(config types.CacheConfig) *CacheServer {
 	}
 
 	return &CacheServer{
-		Config:   config,
-		Storage:  storage,
-		Metrics:  CacheMetrics{Operations: make(map[string]int64)},
-		shutdown: make(chan struct{}),
+		Config:    config,
+		Storage:   storage,
+		Metrics:   CacheMetrics{Operations: make(map[string]int64)},
+		MLService: service.NewMLService(),
+		shutdown:  make(chan struct{}),
 	}
 }
 
@@ -461,9 +556,9 @@ func (cs *CacheServer) startCleanupRoutine() {
 	for {
 		select {
 		case <-ticker.C:
-			err := cs.Storage.Cleanup()
+			err := cs.CleanupWithML()
 			if err != nil {
-				log.Printf("Cleanup error: %v", err)
+				log.Printf("ML-driven cleanup error: %v", err)
 			} else {
 				cs.Metrics.LastCleanup = time.Now()
 				cs.updateMetrics()

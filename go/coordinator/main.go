@@ -10,8 +10,6 @@ import (
 	"net/rpc"
 	"sync"
 	"time"
-	
-	"distributed-gradle-building/types"
 )
 
 // BuildRequest represents a distributed build request
@@ -110,8 +108,8 @@ type BuildCoordinator struct {
 func NewBuildCoordinator(maxWorkers int) *BuildCoordinator {
 	return &BuildCoordinator{
 		workers:    make(map[string]*Worker),
-		buildQueue: make(chan types.BuildRequest, 100),
-		builds:     make(map[string]*types.BuildResponse),
+		buildQueue: make(chan BuildRequest, 100),
+		builds:     make(map[string]*BuildResponse),
 		shutdown:   make(chan struct{}),
 		maxWorkers: maxWorkers,
 	}
@@ -146,7 +144,7 @@ func (bc *BuildCoordinator) UnregisterWorker(workerID string) {
 }
 
 // SubmitBuild adds a build request to the queue
-func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, error) {
+func (bc *BuildCoordinator) SubmitBuild(request BuildRequest) (string, error) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
 	
@@ -157,7 +155,7 @@ func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, err
 	request.Timestamp = time.Now()
 	
 	// Store initial build response
-	response := &types.BuildResponse{
+	response := &BuildResponse{
 		RequestID: request.RequestID,
 		Timestamp: time.Now(),
 		Success:   false,
@@ -175,7 +173,7 @@ func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, err
 }
 
 // GetBuildStatus returns the status of a build
-func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*types.BuildResponse, error) {
+func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*BuildResponse, error) {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
 	

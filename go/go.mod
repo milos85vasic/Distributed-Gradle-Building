@@ -2,4 +2,4 @@ module distributed-gradle-building
 
 go 1.19
 
-require ()
+require github.com/dgrijalva/jwt-go v3.2.0+incompatible

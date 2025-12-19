@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"distributed-gradle-building/coordinatorpkg"
-	"distributed-gradle-building/workerpkg"
 	"distributed-gradle-building/cachepkg"
+	"distributed-gradle-building/coordinatorpkg"
 	"distributed-gradle-building/monitorpkg"
 	"distributed-gradle-building/types"
+	"distributed-gradle-building/workerpkg"
 )
 
 // MetricsIntegrationTest tests metrics collection accuracy and completeness
@@ -29,15 +29,15 @@ type SystemMetrics struct {
 	TotalBuilds       int64
 	SuccessfulBuilds  int64
 	FailedBuilds      int64
-	AverageBuildTime   time.Duration
+	AverageBuildTime  time.Duration
 	P95BuildTime      time.Duration
 	P99BuildTime      time.Duration
-	WorkerUtilization  float64
+	WorkerUtilization float64
 	CacheHitRate      float64
 	MemoryUsage       float64
 	CPUUsage          float64
 	DiskUsage         float64
-	NetworkThroughput  float64
+	NetworkThroughput float64
 	ErrorRate         float64
 	Timestamp         time.Time
 }
@@ -59,52 +59,52 @@ type DistributedTrace struct {
 
 // TraceSpan represents a single operation in a distributed trace
 type TraceSpan struct {
-	SpanID      string
-	ParentID    string
-	Operation   string
-	Service     string
-	StartTime   time.Time
-	EndTime     time.Time
-	Duration    time.Duration
-	Tags        map[string]string
-	Success     bool
-	Error       string
+	SpanID    string
+	ParentID  string
+	Operation string
+	Service   string
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  time.Duration
+	Tags      map[string]string
+	Success   bool
+	Error     string
 }
 
 // ControlledWorkload generates controlled testing workload
 type ControlledWorkload struct {
-	BuildCount    int
-	WorkerCount   int
-	Duration      time.Duration
-	Concurrency   int
-	RequestRate   float64
-	Variance     float64
+	BuildCount  int
+	WorkerCount int
+	Duration    time.Duration
+	Concurrency int
+	RequestRate float64
+	Variance    float64
 }
 
 // WorkloadMetrics represents metrics from workload execution
 type WorkloadMetrics struct {
-	RequestsCompleted   int
-	RequestsFailed      int
-	SuccessRate        float64
-	AverageLatency     time.Duration
-	P95Latency         time.Duration
-	P99Latency         time.Duration
-	Throughput         float64
-	ErrorDistribution  map[string]int
-	ResourceUsage      *ResourceUsage
-	Timestamp          time.Time
+	RequestsCompleted int
+	RequestsFailed    int
+	SuccessRate       float64
+	AverageLatency    time.Duration
+	P95Latency        time.Duration
+	P99Latency        time.Duration
+	Throughput        float64
+	ErrorDistribution map[string]int
+	ResourceUsage     *ResourceUsage
+	Timestamp         time.Time
 }
 
 // ResourceUsage tracks system resource consumption during testing
 type ResourceUsage struct {
-	CPUUtilization    float64
-	MemoryUsage       float64
-	DiskIO           float64
-	NetworkIO        float64
-	FileDescriptors  int
-	GoroutineCount   int
-	HeapSize         int64
-	GCCount          uint32
+	CPUUtilization  float64
+	MemoryUsage     float64
+	DiskIO          float64
+	NetworkIO       float64
+	FileDescriptors int
+	GoroutineCount  int
+	HeapSize        int64
+	GCCount         uint32
 }
 
 // TestMetricsCollectionAccuracy tests the accuracy of metrics collection
@@ -185,8 +185,8 @@ func TestRealTimeMetricsStreaming(t *testing.T) {
 	// receivedMetrics := metricsStream.CollectForDuration(5 * time.Minute)
 	for i := 0; i < 100; i++ {
 		receivedMetrics = append(receivedMetrics, map[string]interface{}{
-			"timestamp": time.Now(),
-			"cpu_usage": rand.Float64(),
+			"timestamp":    time.Now(),
+			"cpu_usage":    rand.Float64(),
 			"memory_usage": rand.Float64(),
 		})
 	}
@@ -198,10 +198,10 @@ func TestRealTimeMetricsStreaming(t *testing.T) {
 		if metricMap, ok := metric.(map[string]interface{}); ok {
 			systemMetrics = append(systemMetrics, &SystemMetrics{
 				WorkerUtilization: 0.75,
-				CacheHitRate:     0.85,
-				MemoryUsage:      metricMap["memory_usage"].(float64),
-				CPUUsage:         metricMap["cpu_usage"].(float64),
-				DiskUsage:        0.2,
+				CacheHitRate:      0.85,
+				MemoryUsage:       metricMap["memory_usage"].(float64),
+				CPUUsage:          metricMap["cpu_usage"].(float64),
+				DiskUsage:         0.2,
 				NetworkThroughput: 50.0,
 			})
 		}
@@ -221,9 +221,9 @@ func TestPerformanceMonitoringIntegration(t *testing.T) {
 	thresholds := &PerformanceThresholds{
 		BuildTimeThreshold:    30 * time.Second,
 		MemoryThreshold:       0.85, // 85% memory usage
-		CPUThreshold:         0.80, // 80% CPU usage
+		CPUThreshold:          0.80, // 80% CPU usage
 		ErrorRateThreshold:    0.05, // 5% error rate
-		CacheHitRateThreshold:  0.70, // 70% cache hit rate
+		CacheHitRateThreshold: 0.70, // 70% cache hit rate
 	}
 
 	// Generate load that triggers thresholds
@@ -324,9 +324,9 @@ func (mit *MetricsIntegrationTest) setupTestEnvironment(t *testing.T) {
 			MaxConcurrentBuilds: 2,
 			WorkerType:          "default",
 		}
-		
+
 		worker := workerpkg.NewWorkerService(workerConfig.ID, "localhost:8080", workerConfig)
-		
+
 		mit.workers[i] = worker
 	}
 
@@ -334,12 +334,12 @@ func (mit *MetricsIntegrationTest) setupTestEnvironment(t *testing.T) {
 	cacheConfig := types.CacheConfig{
 		Port:            9080,
 		StorageType:     "filesystem",
-		StorageDir:       "/tmp/cache",
-		MaxSize:        1024 * 1024 * 1024, // 1GB
+		StorageDir:      "/tmp/cache",
+		MaxCacheSize:    1024 * 1024 * 1024, // 1GB
 		TTL:             30 * time.Minute,
 		CleanupInterval: 5 * time.Minute,
 	}
-	
+
 	mit.cache = cachepkg.NewCacheServer(cacheConfig)
 
 	// Setup monitor
@@ -347,11 +347,11 @@ func (mit *MetricsIntegrationTest) setupTestEnvironment(t *testing.T) {
 		Port:            9081,
 		MetricsInterval: 30 * time.Second,
 		AlertThresholds: map[string]float64{
-			"error_rate": 0.1,
+			"error_rate":  0.1,
 			"latency_p95": 5.0,
 		},
 	}
-	
+
 	mit.monitor = monitorpkg.NewMonitor(monitorConfig)
 }
 
@@ -378,7 +378,7 @@ func (mit *MetricsIntegrationTest) executeControlledWorkload(t *testing.T, workl
 
 	// Generate controlled build requests
 	var wg sync.WaitGroup
-	requestInterval := time.Duration(1.0/workload.RequestRate * float64(time.Second))
+	requestInterval := time.Duration(1.0 / workload.RequestRate * float64(time.Second))
 	requestTicker := time.NewTicker(requestInterval)
 	defer requestTicker.Stop()
 
@@ -391,9 +391,9 @@ func (mit *MetricsIntegrationTest) executeControlledWorkload(t *testing.T, workl
 		wg.Add(1)
 		go func(buildID int) {
 			defer wg.Done()
-			
+
 			buildStart := time.Now()
-			
+
 			buildReq := types.BuildRequest{
 				RequestID:    fmt.Sprintf("metrics-build-%d", buildID),
 				ProjectPath:  fmt.Sprintf("/tmp/metrics-project-%d", buildID),
@@ -404,7 +404,7 @@ func (mit *MetricsIntegrationTest) executeControlledWorkload(t *testing.T, workl
 
 			_, err := mit.coordinator.SubmitBuild(buildReq)
 			buildTime := time.Since(buildStart)
-			
+
 			if err == nil {
 				completedBuilds++
 				totalBuildTime += buildTime
@@ -432,20 +432,20 @@ func (mit *MetricsIntegrationTest) executeControlledWorkload(t *testing.T, workl
 	}
 
 	return &SystemMetrics{
-		TotalBuilds:      int64(workload.BuildCount),
+		TotalBuilds:       int64(workload.BuildCount),
 		SuccessfulBuilds:  completedBuilds,
-		FailedBuilds:     failedBuilds,
-		AverageBuildTime:   avgBuildTime,
+		FailedBuilds:      failedBuilds,
+		AverageBuildTime:  avgBuildTime,
 		P95BuildTime:      p95BuildTime,
 		P99BuildTime:      p99BuildTime,
 		WorkerUtilization: 0.75, // Mock value
-		CacheHitRate:     metrics.CacheHitRate,
-		MemoryUsage:      float64(metrics.ResourceUsage.MemoryUsage),
-		CPUUsage:         metrics.ResourceUsage.CPUPercent,
-		DiskUsage:        0.2, // Mock value
+		CacheHitRate:      metrics.CacheHitRate,
+		MemoryUsage:       float64(metrics.ResourceUsage.MemoryUsage),
+		CPUUsage:          metrics.ResourceUsage.CPUPercent,
+		DiskUsage:         0.2,  // Mock value
 		NetworkThroughput: 50.0, // Mock value
-		ErrorRate:        float64(failedBuilds) / float64(workload.BuildCount),
-		Timestamp:        time.Now(),
+		ErrorRate:         float64(failedBuilds) / float64(workload.BuildCount),
+		Timestamp:         time.Now(),
 	}
 }
 
@@ -473,12 +473,12 @@ func (mit *MetricsIntegrationTest) verifyMetricsAccuracy(t *testing.T, metrics *
 
 	// Verify resource usage is within reasonable bounds
 	if metrics.MemoryUsage > 0.9 || metrics.CPUUsage > 0.9 {
-		t.Errorf("Excessive resource usage: CPU=%.1f%%, Memory=%.1f%%", 
+		t.Errorf("Excessive resource usage: CPU=%.1f%%, Memory=%.1f%%",
 			metrics.CPUUsage*100, metrics.MemoryUsage*100)
 	}
 
 	t.Logf("Metrics accuracy verified:")
-	t.Logf("  Total builds: %d (%d successful, %d failed)", 
+	t.Logf("  Total builds: %d (%d successful, %d failed)",
 		metrics.TotalBuilds, metrics.SuccessfulBuilds, metrics.FailedBuilds)
 	t.Logf("  Average build time: %v", metrics.AverageBuildTime)
 	t.Logf("  Error rate: %.2f%%", metrics.ErrorRate*100)
@@ -506,7 +506,7 @@ func (mit *MetricsIntegrationTest) verifyTraceCompleteness(t *testing.T, spans [
 			Spans: spans,
 		}
 		trace.Duration = calculateTraceDuration(spans)
-		
+
 		if trace.Duration > 60*time.Second {
 			t.Errorf("Excessive trace duration: %v", trace.Duration)
 		}
@@ -532,7 +532,7 @@ func (mit *MetricsIntegrationTest) verifyTraceRelationships(t *testing.T, spans 
 			} else {
 				// Verify timing relationship
 				if span.StartTime.Before(parent.StartTime) {
-					t.Errorf("Child span starts before parent: %s starts at %v, parent %s starts at %v", 
+					t.Errorf("Child span starts before parent: %s starts at %v, parent %s starts at %v",
 						span.SpanID, span.StartTime, parent.SpanID, parent.StartTime)
 				}
 			}
@@ -548,39 +548,39 @@ func (mit *MetricsIntegrationTest) verifyTraceRelationships(t *testing.T, spans 
 type PerformanceThresholds struct {
 	BuildTimeThreshold    time.Duration
 	MemoryThreshold       float64
-	CPUThreshold         float64
+	CPUThreshold          float64
 	ErrorRateThreshold    float64
 	CacheHitRateThreshold float64
 }
 
 // Alert represents a system alert
 type Alert struct {
-	ID          string
-	Type        string
-	Severity    string
-	Message     string
-	Timestamp   time.Time
-	Metrics     map[string]interface{}
-	Service     string
-	Resolved    bool
+	ID        string
+	Type      string
+	Severity  string
+	Message   string
+	Timestamp time.Time
+	Metrics   map[string]interface{}
+	Service   string
+	Resolved  bool
 }
 
 // LogAggregator represents log aggregation system
 type LogAggregator struct {
-	logs    []LogEntry
-	index    map[string][]int // Index by log level
-	mutex    sync.RWMutex
+	logs  []LogEntry
+	index map[string][]int // Index by log level
+	mutex sync.RWMutex
 }
 
 // LogEntry represents a single log entry
 type LogEntry struct {
-	Timestamp   time.Time
-	Level       string
-	Service     string
-	Message     string
-	TraceID     string
-	SpanID      string
-	Metadata    map[string]interface{}
+	Timestamp time.Time
+	Level     string
+	Service   string
+	Message   string
+	TraceID   string
+	SpanID    string
+	Metadata  map[string]interface{}
 }
 
 // MetricsStream represents real-time metrics streaming
@@ -593,10 +593,10 @@ type MetricsStream struct {
 func getMockSystemMetrics() *SystemMetrics {
 	return &SystemMetrics{
 		WorkerUtilization: 0.75,
-		CacheHitRate:     0.85,
-		MemoryUsage:      0.65,
-		CPUUsage:         0.60,
-		DiskUsage:        0.45,
+		CacheHitRate:      0.85,
+		MemoryUsage:       0.65,
+		CPUUsage:          0.60,
+		DiskUsage:         0.45,
 		NetworkThroughput: 100.0,
 	}
 }
@@ -623,10 +623,10 @@ func (mit *MetricsIntegrationTest) submitTracedBuild(t *testing.T, project strin
 }
 
 func (mit *MetricsIntegrationTest) generateContinuousLoad(ctx context.Context, requestsPerSecond int) {
-	requestInterval := time.Duration(1.0/float64(requestsPerSecond) * float64(time.Second))
+	requestInterval := time.Duration(1.0 / float64(requestsPerSecond) * float64(time.Second))
 	ticker := time.NewTicker(requestInterval)
 	defer ticker.Stop()
-	
+
 	buildCount := 0
 	for {
 		select {
@@ -716,7 +716,7 @@ func getAggregatedLogs(la *LogAggregator) []LogEntry {
 func (tc *TraceCollector) GetTrace(traceID string) []*TraceSpan {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
-	
+
 	if trace, exists := tc.traces[traceID]; exists {
 		return trace.Spans
 	}
@@ -732,11 +732,11 @@ func calculatePercentile(values []time.Duration, percentile float64) time.Durati
 	if len(values) == 0 {
 		return 0
 	}
-	
+
 	// Sort values (simplified implementation)
 	sorted := make([]time.Duration, len(values))
 	copy(sorted, values)
-	
+
 	// Simple bubble sort for demonstration
 	for i := 0; i < len(sorted); i++ {
 		for j := i + 1; j < len(sorted); j++ {
@@ -745,12 +745,12 @@ func calculatePercentile(values []time.Duration, percentile float64) time.Durati
 			}
 		}
 	}
-	
+
 	index := int(float64(len(sorted)) * percentile)
 	if index >= len(sorted) {
 		index = len(sorted) - 1
 	}
-	
+
 	return sorted[index]
 }
 
@@ -758,7 +758,7 @@ func calculateTraceDuration(spans []*TraceSpan) time.Duration {
 	if len(spans) == 0 {
 		return 0
 	}
-	
+
 	var minStart, maxEnd time.Time
 	for i, span := range spans {
 		if i == 0 {
@@ -773,6 +773,6 @@ func calculateTraceDuration(spans []*TraceSpan) time.Duration {
 			}
 		}
 	}
-	
+
 	return maxEnd.Sub(minStart)
 }

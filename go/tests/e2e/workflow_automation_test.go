@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"distributed-gradle-building/coordinatorpkg"
-	"distributed-gradle-building/workerpkg"
 	"distributed-gradle-building/cachepkg"
+	"distributed-gradle-building/coordinatorpkg"
 	"distributed-gradle-building/monitorpkg"
 	"distributed-gradle-building/types"
+	"distributed-gradle-building/workerpkg"
 )
 
 // WorkflowStage represents a stage in the distributed build workflow
@@ -30,49 +30,49 @@ const (
 
 // WorkflowAutomation represents end-to-end workflow automation
 type WorkflowAutomation struct {
-	Stages            []WorkflowStage
-	coordinator       *coordinatorpkg.BuildCoordinator
-	workers           []*workerpkg.WorkerService
-	cache             *cachepkg.CacheServer
-	monitor           *monitorpkg.Monitor
-	results           *WorkflowResult
-	mutex             sync.RWMutex
+	Stages      []WorkflowStage
+	coordinator *coordinatorpkg.BuildCoordinator
+	workers     []*workerpkg.WorkerService
+	cache       *cachepkg.CacheServer
+	monitor     *monitorpkg.Monitor
+	results     *WorkflowResult
+	mutex       sync.RWMutex
 }
 
 // WorkflowResult represents the outcome of a workflow execution
 type WorkflowResult struct {
 	Success           bool
 	TotalDuration     time.Duration
-	CacheHitRate     float64
-	BuildsCompleted  int
-	BuildsFailed     int
-	ArtifactsStored  int
+	CacheHitRate      float64
+	BuildsCompleted   int
+	BuildsFailed      int
+	ArtifactsStored   int
 	WorkerUtilization float64
-	Metrics          *WorkflowMetrics
-	Errors           []error
+	Metrics           *WorkflowMetrics
+	Errors            []error
 }
 
 // WorkflowMetrics tracks detailed workflow metrics
 type WorkflowMetrics struct {
-	ProjectSetupTime      time.Duration
-	SubmissionTime       time.Duration
-	DistributionTime     time.Duration
-	ExecutionTime        time.Duration
-	AggregationTime      time.Duration
-	CollectionTime       time.Duration
-	CleanupTime          time.Duration
-	PeakMemoryUsage      float64
-	NetworkTransferMB    float64
-	WorkerIdleTime       time.Duration
+	ProjectSetupTime  time.Duration
+	SubmissionTime    time.Duration
+	DistributionTime  time.Duration
+	ExecutionTime     time.Duration
+	AggregationTime   time.Duration
+	CollectionTime    time.Duration
+	CleanupTime       time.Duration
+	PeakMemoryUsage   float64
+	NetworkTransferMB float64
+	WorkerIdleTime    time.Duration
 }
 
 // MultiProjectWorkflow handles concurrent multi-project builds
 type MultiProjectWorkflow struct {
-	Projects          []string
-	Concurrency       int
-	SharedResources   bool
-	workflowResults   map[string]*WorkflowResult
-	mutex            sync.RWMutex
+	Projects        []string
+	Concurrency     int
+	SharedResources bool
+	workflowResults map[string]*WorkflowResult
+	mutex           sync.RWMutex
 }
 
 // Project represents a build project configuration
@@ -82,7 +82,7 @@ type Project struct {
 	BuildTasks       []string
 	Dependencies     []string
 	Priority         int
-	ExpectedDuration  time.Duration
+	ExpectedDuration time.Duration
 	Artifacts        []string
 }
 
@@ -129,7 +129,7 @@ func TestMultiProjectWorkflow(t *testing.T) {
 
 	projects := []string{
 		"microservice-auth",
-		"microservice-user", 
+		"microservice-user",
 		"microservice-payment",
 		"frontend-react",
 		"data-pipeline",
@@ -178,10 +178,10 @@ func TestDistributedWorkflowResilience(t *testing.T) {
 
 	// Inject failures during workflow execution
 	failures := &FailureInjector{
-		FailureRate:      0.2, // 20% failure rate
-		NetworkLatency:   100 * time.Millisecond,
-		DiskFailure:      false,
-		MemoryPressure:    false,
+		FailureRate:    0.2, // 20% failure rate
+		NetworkLatency: 100 * time.Millisecond,
+		DiskFailure:    false,
+		MemoryPressure: false,
 	}
 
 	result := workflow.ExecuteWithFailures(t, failures)
@@ -216,32 +216,32 @@ func (wa *WorkflowAutomation) Execute(t *testing.T) *WorkflowResult {
 	// Execute workflow stages
 	for _, stage := range wa.Stages {
 		stageStartTime := time.Now()
-		
+
 		switch stage {
 		case StageProjectSetup:
 			wa.executeProjectSetup(t)
 			wa.results.Metrics.ProjectSetupTime = time.Since(stageStartTime)
-			
+
 		case StageBuildSubmission:
 			wa.executeBuildSubmission(t)
 			wa.results.Metrics.SubmissionTime = time.Since(stageStartTime)
-			
+
 		case StageTaskDistribution:
 			wa.executeTaskDistribution(t)
 			wa.results.Metrics.DistributionTime = time.Since(stageStartTime)
-			
+
 		case StageBuildExecution:
 			wa.executeBuildExecution(t)
 			wa.results.Metrics.ExecutionTime = time.Since(stageStartTime)
-			
+
 		case StageResultAggregation:
 			wa.executeResultAggregation(t)
 			wa.results.Metrics.AggregationTime = time.Since(stageStartTime)
-			
+
 		case StageArtifactCollection:
 			wa.executeArtifactCollection(t)
 			wa.results.Metrics.CollectionTime = time.Since(stageStartTime)
-			
+
 		case StageCleanup:
 			wa.executeCleanup(t)
 			wa.results.Metrics.CleanupTime = time.Since(stageStartTime)
@@ -268,13 +268,13 @@ func (wa *WorkflowAutomation) ExecuteWithFailures(t *testing.T, failures *Failur
 	// Start failure injection
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	go failures.InjectFailures(ctx, wa.coordinator, wa.workers, wa.cache)
 
 	// Execute workflow stages with failure handling
 	for _, stage := range wa.Stages {
 		stageStartTime := time.Now()
-		
+
 		err := wa.executeStageWithRetry(t, stage, 3) // Max 3 retries per stage
 		if err != nil {
 			wa.results.Errors = append(wa.results.Errors, err)
@@ -329,9 +329,9 @@ func (wa *WorkflowAutomation) setupDistributedSystem(t *testing.T) {
 			MaxConcurrentBuilds: 2,
 			WorkerType:          "default",
 		}
-		
+
 		worker := workerpkg.NewWorkerService(workerConfig.ID, "localhost:8080", workerConfig)
-		
+
 		wa.workers[i] = worker
 	}
 
@@ -339,12 +339,12 @@ func (wa *WorkflowAutomation) setupDistributedSystem(t *testing.T) {
 	cacheConfig := types.CacheConfig{
 		Port:            9080,
 		StorageType:     "filesystem",
-		StorageDir:       "/tmp/cache",
-		MaxSize:        1024 * 1024 * 1024, // 1GB
+		StorageDir:      "/tmp/cache",
+		MaxCacheSize:    1024 * 1024 * 1024, // 1GB
 		TTL:             30 * time.Minute,
 		CleanupInterval: 5 * time.Minute,
 	}
-	
+
 	wa.cache = cachepkg.NewCacheServer(cacheConfig)
 
 	// Setup monitor
@@ -352,11 +352,11 @@ func (wa *WorkflowAutomation) setupDistributedSystem(t *testing.T) {
 		Port:            9081,
 		MetricsInterval: 30 * time.Second,
 		AlertThresholds: map[string]float64{
-			"error_rate": 0.1,
+			"error_rate":  0.1,
 			"latency_p95": 5.0,
 		},
 	}
-	
+
 	wa.monitor = monitorpkg.NewMonitor(monitorConfig)
 }
 
@@ -387,12 +387,12 @@ func (wa *WorkflowAutomation) executeProjectSetup(t *testing.T) {
 func (wa *WorkflowAutomation) executeBuildSubmission(t *testing.T) {
 	buildCount := 10
 	var wg sync.WaitGroup
-	
+
 	for i := 0; i < buildCount; i++ {
 		wg.Add(1)
 		go func(buildID int) {
 			defer wg.Done()
-			
+
 			buildReq := types.BuildRequest{
 				RequestID:    fmt.Sprintf("workflow-build-%d", buildID),
 				ProjectPath:  fmt.Sprintf("/tmp/workflow-project-%d", buildID),
@@ -409,7 +409,7 @@ func (wa *WorkflowAutomation) executeBuildSubmission(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	wg.Wait()
 }
 
@@ -443,7 +443,7 @@ func (wa *WorkflowAutomation) executeCleanup(t *testing.T) {
 // executeStageWithRetry executes a stage with retry logic
 func (wa *WorkflowAutomation) executeStageWithRetry(t *testing.T, stage WorkflowStage, maxRetries int) error {
 	var lastErr error
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		switch stage {
 		case StageProjectSetup:
@@ -468,12 +468,12 @@ func (wa *WorkflowAutomation) executeStageWithRetry(t *testing.T, stage Workflow
 			wa.executeCleanup(t)
 			return nil
 		}
-		
+
 		if attempt < maxRetries-1 {
 			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
 		}
 	}
-	
+
 	return lastErr
 }
 
@@ -482,16 +482,16 @@ func (wa *WorkflowAutomation) calculateFinalMetrics() {
 	if wa.results.Metrics != nil {
 		// Calculate worker utilization (mock calculation)
 		wa.results.WorkerUtilization = 0.85
-		
+
 		// Calculate cache hit rate (mock calculation)
 		wa.results.CacheHitRate = 0.85
-		
+
 		// Calculate peak memory usage (mock calculation)
 		wa.results.Metrics.PeakMemoryUsage = 0.65
-		
+
 		// Calculate network transfer (mock calculation)
 		wa.results.Metrics.NetworkTransferMB = 125.5
-		
+
 		// Calculate worker idle time (mock calculation)
 		wa.results.Metrics.WorkerIdleTime = 5 * time.Second
 	}
@@ -511,18 +511,18 @@ func NewMultiProjectWorkflow(projects []string) *MultiProjectWorkflow {
 func (mpw *MultiProjectWorkflow) ExecuteConcurrently(t *testing.T) map[string]*WorkflowResult {
 	var wg sync.WaitGroup
 	results := make(chan *WorkflowResult, len(mpw.Projects))
-	
+
 	// Execute projects concurrently with controlled concurrency
 	semaphore := make(chan struct{}, mpw.Concurrency)
-	
+
 	for _, project := range mpw.Projects {
 		wg.Add(1)
 		go func(projectName string) {
 			defer wg.Done()
-			
-			semaphore <- struct{}{} // Acquire semaphore
+
+			semaphore <- struct{}{}        // Acquire semaphore
 			defer func() { <-semaphore }() // Release semaphore
-			
+
 			workflow := &WorkflowAutomation{
 				Stages: []WorkflowStage{
 					StageProjectSetup,
@@ -534,41 +534,41 @@ func (mpw *MultiProjectWorkflow) ExecuteConcurrently(t *testing.T) map[string]*W
 					StageCleanup,
 				},
 			}
-			
+
 			workflowResult := workflow.Execute(t)
-			
+
 			mpw.mutex.Lock()
 			mpw.workflowResults[projectName] = workflowResult
 			mpw.mutex.Unlock()
-			
+
 			results <- workflowResult
 		}(project)
 	}
-	
+
 	wg.Wait()
 	close(results)
-	
+
 	// Collect all results
 	for range results {
 		// Results already stored in workflowResults map
 	}
-	
+
 	return mpw.workflowResults
 }
 
 // FailureInjector simulates various failure scenarios
 type FailureInjector struct {
-	FailureRate     float64
-	NetworkLatency  time.Duration
-	DiskFailure     bool
-	MemoryPressure   bool
+	FailureRate    float64
+	NetworkLatency time.Duration
+	DiskFailure    bool
+	MemoryPressure bool
 }
 
 // InjectFailures injects failures into the distributed system
 func (fi *FailureInjector) InjectFailures(ctx context.Context, coordinator *coordinatorpkg.BuildCoordinator, workers []*workerpkg.WorkerService, cache *cachepkg.CacheServer) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -606,14 +606,14 @@ func calculateSuccessRate(results map[string]*WorkflowResult) float64 {
 	if len(results) == 0 {
 		return 0.0
 	}
-	
+
 	successCount := 0
 	for _, result := range results {
 		if result.Success {
 			successCount++
 		}
 	}
-	
+
 	return float64(successCount) / float64(len(results))
 }
 
@@ -621,12 +621,12 @@ func calculateAverageDuration(results map[string]*WorkflowResult) time.Duration 
 	if len(results) == 0 {
 		return 0
 	}
-	
+
 	var totalDuration time.Duration
 	for _, result := range results {
 		totalDuration += result.TotalDuration
 	}
-	
+
 	return totalDuration / time.Duration(len(results))
 }
 

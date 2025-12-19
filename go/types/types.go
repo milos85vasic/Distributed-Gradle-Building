@@ -126,7 +126,7 @@ type CacheConfig struct {
 	S3Bucket        string        `json:"s3_bucket"`
 	S3Region        string        `json:"s3_region"`
 	MaxCacheSize    int64         `json:"max_cache_size"`
-	TTL             int           `json:"ttl"`
+	TTL             time.Duration `json:"ttl"`
 	CleanupInterval time.Duration `json:"cleanup_interval"`
 }
 

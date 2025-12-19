@@ -14,42 +14,46 @@ import (
 
 // CacheServer manages distributed build cache
 type CacheServer struct {
-	config        *CacheConfig
-	cache         map[string]*CacheEntry
-	mutex         sync.RWMutex
-	storageDir    string
-	storage       CacheStorage
-	hitCount      int64
-	missCount     int64
-	startTime     time.Time
-	httpServer    *http.Server
+	config     *CacheConfig
+	cache      map[string]*CacheEntry
+	mutex      sync.RWMutex
+	storageDir string
+	storage    CacheStorage
+	hitCount   int64
+	missCount  int64
+	startTime  time.Time
+	httpServer *http.Server
 }
 
 // CacheConfig contains cache server configuration
 type CacheConfig struct {
-	Host           string `json:"host"`
-	Port           int    `json:"port"`
-	StorageType    string `json:"storage_type"`
-	StorageDir     string `json:"storage_dir"`
-	MaxCacheSize   int64  `json:"max_cache_size"`
-	TTL            int    `json:"ttl_seconds"`
-	Compression    bool   `json:"compression"`
-	Authentication bool   `json:"authentication"`
-	AuthToken      string `json:"auth_token"`
+	Host           string        `json:"host"`
+	Port           int           `json:"port"`
+	StorageType    string        `json:"storage_type"`
+	StorageDir     string        `json:"storage_dir"`
+	RedisAddr      string        `json:"redis_addr"`
+	RedisPassword  string        `json:"redis_password"`
+	S3Bucket       string        `json:"s3_bucket"`
+	S3Region       string        `json:"s3_region"`
+	MaxCacheSize   int64         `json:"max_cache_size"`
+	TTL            time.Duration `json:"ttl_seconds"`
+	Compression    bool          `json:"compression"`
+	Authentication bool          `json:"authentication"`
+	AuthToken      string        `json:"auth_token"`
 }
 
 // CacheEntry represents a cached build artifact
 type CacheEntry struct {
-	Key            string                 `json:"key"`
-	Path           string                 `json:"path"`
-	Size           int64                  `json:"size"`
-	Hash           string                 `json:"hash"`
-	CreatedAt      time.Time              `json:"created_at"`
-	LastAccessed   time.Time              `json:"last_accessed"`
-	TTL            int                    `json:"ttl"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	AccessCount    int64                  `json:"access_count"`
-	Compression    bool                   `json:"compression"`
+	Key          string                 `json:"key"`
+	Path         string                 `json:"path"`
+	Size         int64                  `json:"size"`
+	Hash         string                 `json:"hash"`
+	CreatedAt    time.Time              `json:"created_at"`
+	LastAccessed time.Time              `json:"last_accessed"`
+	TTL          time.Duration          `json:"ttl"`
+	Metadata     map[string]interface{} `json:"metadata"`
+	AccessCount  int64                  `json:"access_count"`
+	Compression  bool                   `json:"compression"`
 }
 
 // CacheStorage interface for different storage backends
@@ -70,11 +74,11 @@ type FileSystemStorage struct {
 
 // CacheRequest represents a cache request
 type CacheRequest struct {
-	Key       string                 `json:"key"`
-	Data      []byte                 `json:"data"`
-	Hash      string                 `json:"hash"`
-	TTL       int                    `json:"ttl"`
-	Metadata  map[string]interface{} `json:"metadata"`
+	Key      string                 `json:"key"`
+	Data     []byte                 `json:"data"`
+	Hash     string                 `json:"hash"`
+	TTL      int                    `json:"ttl"`
+	Metadata map[string]interface{} `json:"metadata"`
 }
 
 // CacheResponse represents a cache response
@@ -90,15 +94,15 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 	if config.StorageDir == "" {
 		config.StorageDir = "/tmp/gradle-cache-server"
 	}
-	
+
 	if config.TTL == 0 {
-		config.TTL = 86400 // 24 hours
+		config.TTL = 24 * time.Hour // 24 hours
 	}
-	
+
 	if config.MaxCacheSize == 0 {
 		config.MaxCacheSize = 10 * 1024 * 1024 * 1024 // 10GB
 	}
-	
+
 	server := &CacheServer{
 		config:     config,
 		cache:      make(map[string]*CacheEntry),
@@ -107,7 +111,7 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 		hitCount:   0,
 		missCount:  0,
 	}
-	
+
 	// Initialize storage
 	var err error
 	switch config.StorageType {
@@ -120,14 +124,14 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.StorageType)
 	}
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %v", err)
 	}
-	
+
 	// Load existing cache entries
 	server.loadExistingEntries()
-	
+
 	return server, nil
 }
 
@@ -136,11 +140,11 @@ func NewFileSystemStorage(baseDir string) (*FileSystemStorage, error) {
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, err
 	}
-	
+
 	storage := &FileSystemStorage{
 		baseDir: baseDir,
 	}
-	
+
 	return storage, nil
 }
 
@@ -155,7 +159,7 @@ func NewRedisStorage(addr, password string) (*RedisStorage, error) {
 	}, nil
 }
 
-// NewS3Storage creates a new S3 storage backend  
+// NewS3Storage creates a new S3 storage backend
 func NewS3Storage(bucket, region string) (*S3Storage, error) {
 	// For now, return a placeholder that logs S3 operations
 	log.Printf("S3 storage requested for bucket %s in region %s (placeholder implementation)", bucket, region)
@@ -174,24 +178,41 @@ type RedisStorage struct {
 	mutex    sync.RWMutex
 }
 
-// Get retrieves data from Redis
-func (rs *RedisStorage) Get(key string) ([]byte, error) {
+// Get retrieves entry from Redis
+func (rs *RedisStorage) Get(key string) (*CacheEntry, error) {
 	rs.mutex.RLock()
 	defer rs.mutex.RUnlock()
-	
+
 	data, exists := rs.data[key]
 	if !exists {
 		return nil, fmt.Errorf("key not found")
 	}
-	
-	return data, nil
+
+	return &CacheEntry{
+		Key:       key,
+		Size:      int64(len(data)),
+		CreatedAt: time.Now(), // In real Redis, this would be stored
+		TTL:       0,
+		Metadata:  map[string]interface{}{},
+	}, nil
 }
 
-// Set stores data in Redis
+// Put stores entry in Redis
+func (rs *RedisStorage) Put(key string, entry *CacheEntry) error {
+	rs.mutex.Lock()
+	defer rs.mutex.Unlock()
+
+	// In a real implementation, we'd store the data separately
+	// For this simulation, we'll just store a placeholder
+	rs.data[key] = []byte("placeholder data")
+	return nil
+}
+
+// Set stores data in Redis (legacy method)
 func (rs *RedisStorage) Set(key string, data []byte, ttl int) error {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
-	
+
 	rs.data[key] = data
 	return nil
 }
@@ -200,7 +221,7 @@ func (rs *RedisStorage) Set(key string, data []byte, ttl int) error {
 func (rs *RedisStorage) Delete(key string) error {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
-	
+
 	delete(rs.data, key)
 	return nil
 }
@@ -209,18 +230,18 @@ func (rs *RedisStorage) Delete(key string) error {
 func (rs *RedisStorage) List() ([]*CacheEntry, error) {
 	rs.mutex.RLock()
 	defer rs.mutex.RUnlock()
-	
+
 	var entries []*CacheEntry
 	for key, data := range rs.data {
 		entries = append(entries, &CacheEntry{
-			Key:      key,
-			Data:     data,
-			TTL:      0,
-			Metadata: map[string]string{},
+			Key:       key,
+			Size:      int64(len(data)),
+			TTL:       0,
+			Metadata:  map[string]interface{}{},
 			CreatedAt: time.Now(),
 		})
 	}
-	
+
 	return entries, nil
 }
 
@@ -228,13 +249,19 @@ func (rs *RedisStorage) List() ([]*CacheEntry, error) {
 func (rs *RedisStorage) GetSize() (int64, error) {
 	rs.mutex.RLock()
 	defer rs.mutex.RUnlock()
-	
+
 	var size int64
 	for _, data := range rs.data {
 		size += int64(len(data))
 	}
-	
+
 	return size, nil
+}
+
+// Cleanup removes expired entries from Redis storage
+func (rs *RedisStorage) Cleanup() error {
+	// Redis storage doesn't need cleanup as it uses in-memory simulation
+	return nil
 }
 
 // S3Storage implements storage backend using S3
@@ -245,24 +272,41 @@ type S3Storage struct {
 	mutex  sync.RWMutex
 }
 
-// Get retrieves data from S3
-func (s3 *S3Storage) Get(key string) ([]byte, error) {
+// Get retrieves entry from S3
+func (s3 *S3Storage) Get(key string) (*CacheEntry, error) {
 	s3.mutex.RLock()
 	defer s3.mutex.RUnlock()
-	
+
 	data, exists := s3.data[key]
 	if !exists {
 		return nil, fmt.Errorf("key not found")
 	}
-	
-	return data, nil
+
+	return &CacheEntry{
+		Key:       key,
+		Size:      int64(len(data)),
+		CreatedAt: time.Now(), // In real S3, this would be stored
+		TTL:       0,
+		Metadata:  map[string]interface{}{},
+	}, nil
 }
 
-// Set stores data in S3
+// Put stores entry in S3
+func (s3 *S3Storage) Put(key string, entry *CacheEntry) error {
+	s3.mutex.Lock()
+	defer s3.mutex.Unlock()
+
+	// In a real implementation, we'd store the data separately
+	// For this simulation, we'll just store a placeholder
+	s3.data[key] = []byte("placeholder data")
+	return nil
+}
+
+// Set stores data in S3 (legacy method)
 func (s3 *S3Storage) Set(key string, data []byte, ttl int) error {
 	s3.mutex.Lock()
 	defer s3.mutex.Unlock()
-	
+
 	s3.data[key] = data
 	return nil
 }
@@ -271,7 +315,7 @@ func (s3 *S3Storage) Set(key string, data []byte, ttl int) error {
 func (s3 *S3Storage) Delete(key string) error {
 	s3.mutex.Lock()
 	defer s3.mutex.Unlock()
-	
+
 	delete(s3.data, key)
 	return nil
 }
@@ -280,18 +324,18 @@ func (s3 *S3Storage) Delete(key string) error {
 func (s3 *S3Storage) List() ([]*CacheEntry, error) {
 	s3.mutex.RLock()
 	defer s3.mutex.RUnlock()
-	
+
 	var entries []*CacheEntry
 	for key, data := range s3.data {
 		entries = append(entries, &CacheEntry{
-			Key:      key,
-			Data:     data,
-			TTL:      0,
-			Metadata: map[string]string{},
+			Key:       key,
+			Size:      int64(len(data)),
+			TTL:       0,
+			Metadata:  map[string]interface{}{},
 			CreatedAt: time.Now(),
 		})
 	}
-	
+
 	return entries, nil
 }
 
@@ -299,39 +343,45 @@ func (s3 *S3Storage) List() ([]*CacheEntry, error) {
 func (s3 *S3Storage) GetSize() (int64, error) {
 	s3.mutex.RLock()
 	defer s3.mutex.RUnlock()
-	
+
 	var size int64
 	for _, data := range s3.data {
 		size += int64(len(data))
 	}
-	
+
 	return size, nil
+}
+
+// Cleanup removes expired entries from S3 storage
+func (s3 *S3Storage) Cleanup() error {
+	// S3 storage doesn't need cleanup as it uses in-memory simulation
+	return nil
 }
 
 // Put stores an entry in the cache
 func (fs *FileSystemStorage) Put(key string, entry *CacheEntry) error {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
-	
+
 	entryPath := filepath.Join(fs.baseDir, key)
 	dataPath := entryPath + ".data"
 	metaPath := entryPath + ".meta"
-	
+
 	// Store data
 	if err := os.WriteFile(dataPath, []byte{}, 0644); err != nil {
 		return err
 	}
-	
+
 	// Store metadata
 	metaData, err := json.Marshal(entry)
 	if err != nil {
 		return err
 	}
-	
+
 	if err := os.WriteFile(metaPath, metaData, 0644); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -339,10 +389,10 @@ func (fs *FileSystemStorage) Put(key string, entry *CacheEntry) error {
 func (fs *FileSystemStorage) Get(key string) (*CacheEntry, error) {
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
-	
+
 	entryPath := filepath.Join(fs.baseDir, key)
 	metaPath := entryPath + ".meta"
-	
+
 	data, err := ioutil.ReadFile(metaPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -350,12 +400,12 @@ func (fs *FileSystemStorage) Get(key string) (*CacheEntry, error) {
 		}
 		return nil, err
 	}
-	
+
 	var entry CacheEntry
 	if err := json.Unmarshal(data, &entry); err != nil {
 		return nil, err
 	}
-	
+
 	return &entry, nil
 }
 
@@ -363,14 +413,14 @@ func (fs *FileSystemStorage) Get(key string) (*CacheEntry, error) {
 func (fs *FileSystemStorage) Delete(key string) error {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
-	
+
 	entryPath := filepath.Join(fs.baseDir, key)
 	dataPath := entryPath + ".data"
 	metaPath := entryPath + ".meta"
-	
+
 	os.Remove(dataPath)
 	os.Remove(metaPath)
-	
+
 	return nil
 }
 
@@ -378,14 +428,14 @@ func (fs *FileSystemStorage) Delete(key string) error {
 func (fs *FileSystemStorage) List() ([]*CacheEntry, error) {
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
-	
+
 	var entries []*CacheEntry
-	
+
 	files, err := ioutil.ReadDir(fs.baseDir)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".meta" {
 			key := file.Name()[:len(file.Name())-5]
@@ -398,7 +448,7 @@ func (fs *FileSystemStorage) List() ([]*CacheEntry, error) {
 			}
 		}
 	}
-	
+
 	return entries, nil
 }
 
@@ -408,27 +458,27 @@ func (fs *FileSystemStorage) Cleanup() error {
 	if err != nil {
 		return err
 	}
-	
+
 	for _, entry := range entries {
 		if entry.TTL > 0 && time.Since(entry.CreatedAt) > time.Duration(entry.TTL)*time.Second {
 			fs.Delete(entry.Key)
 		}
 	}
-	
+
 	return nil
 }
 
 // GetSize returns the total size of the cache storage
 func (fs *FileSystemStorage) GetSize() (int64, error) {
 	var totalSize int64
-	
+
 	err := filepath.Walk(fs.baseDir, func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
 			totalSize += info.Size()
 		}
 		return nil
 	})
-	
+
 	return totalSize, err
 }
 
@@ -439,14 +489,14 @@ func (cs *CacheServer) loadExistingEntries() {
 		log.Printf("Error loading existing entries: %v", err)
 		return
 	}
-	
+
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
-	
+
 	for _, entry := range entries {
 		cs.cache[entry.Key] = entry
 	}
-	
+
 	log.Printf("Loaded %d existing cache entries", len(entries))
 }
 
@@ -454,7 +504,7 @@ func (cs *CacheServer) loadExistingEntries() {
 func (cs *CacheServer) Put(key string, request *CacheRequest) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
-	
+
 	// Check if cache size limit is reached
 	if cs.config.MaxCacheSize > 0 {
 		size, _ := cs.storage.GetSize()
@@ -462,7 +512,7 @@ func (cs *CacheServer) Put(key string, request *CacheRequest) error {
 			cs.evictLRU()
 		}
 	}
-	
+
 	entry := &CacheEntry{
 		Key:          key,
 		Path:         filepath.Join(cs.storageDir, key),
@@ -470,24 +520,24 @@ func (cs *CacheServer) Put(key string, request *CacheRequest) error {
 		Hash:         request.Hash,
 		CreatedAt:    time.Now(),
 		LastAccessed: time.Now(),
-		TTL:          request.TTL,
+		TTL:          time.Duration(request.TTL) * time.Second,
 		Metadata:     request.Metadata,
 		AccessCount:  0,
 		Compression:  cs.config.Compression,
 	}
-	
+
 	if err := cs.storage.Put(key, entry); err != nil {
 		return err
 	}
-	
+
 	cs.cache[key] = entry
-	
+
 	// Store actual data
 	dataPath := filepath.Join(cs.storageDir, key+".data")
 	if err := os.WriteFile(dataPath, request.Data, 0644); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -495,26 +545,26 @@ func (cs *CacheServer) Put(key string, request *CacheRequest) error {
 func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
-	
+
 	entry, exists := cs.cache[key]
 	if !exists {
 		cs.missCount++
 		return &CacheResponse{Found: false}, nil
 	}
-	
+
 	// Check TTL
-	if entry.TTL > 0 && time.Since(entry.CreatedAt) > time.Duration(entry.TTL)*time.Second {
+	if entry.TTL > 0 && time.Since(entry.CreatedAt) > entry.TTL {
 		delete(cs.cache, key)
 		cs.storage.Delete(key)
 		cs.missCount++
 		return &CacheResponse{Found: false}, nil
 	}
-	
+
 	// Update access info
 	entry.LastAccessed = time.Now()
 	entry.AccessCount++
 	cs.hitCount++
-	
+
 	// Load data
 	dataPath := filepath.Join(cs.storageDir, key+".data")
 	data, err := ioutil.ReadFile(dataPath)
@@ -523,7 +573,7 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 		cs.missCount++
 		return &CacheResponse{Found: false}, err
 	}
-	
+
 	return &CacheResponse{
 		Found:    true,
 		Entry:    entry,
@@ -536,7 +586,7 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 func (cs *CacheServer) Delete(key string) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
-	
+
 	delete(cs.cache, key)
 	return cs.storage.Delete(key)
 }
@@ -545,14 +595,14 @@ func (cs *CacheServer) Delete(key string) error {
 func (cs *CacheServer) evictLRU() {
 	var oldestKey string
 	var oldestTime time.Time = time.Now()
-	
+
 	for key, entry := range cs.cache {
 		if entry.LastAccessed.Before(oldestTime) {
 			oldestTime = entry.LastAccessed
 			oldestKey = key
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(cs.cache, oldestKey)
 		cs.storage.Delete(oldestKey)
@@ -566,17 +616,17 @@ func (cs *CacheServer) Cleanup() error {
 	if err != nil {
 		return err
 	}
-	
+
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
-	
+
 	for _, entry := range entries {
-		if entry.TTL > 0 && time.Since(entry.CreatedAt) > time.Duration(entry.TTL)*time.Second {
+		if entry.TTL > 0 && time.Since(entry.CreatedAt) > entry.TTL {
 			delete(cs.cache, entry.Key)
 			cs.storage.Delete(entry.Key)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -584,14 +634,14 @@ func (cs *CacheServer) Cleanup() error {
 func (cs *CacheServer) GetStats() map[string]interface{} {
 	cs.mutex.RLock()
 	defer cs.mutex.RUnlock()
-	
+
 	hitRate := float64(0)
 	if cs.hitCount+cs.missCount > 0 {
 		hitRate = float64(cs.hitCount) / float64(cs.hitCount+cs.missCount)
 	}
-	
+
 	size, _ := cs.storage.GetSize()
-	
+
 	return map[string]interface{}{
 		"entries":        len(cs.cache),
 		"hit_count":      cs.hitCount,
@@ -606,21 +656,21 @@ func (cs *CacheServer) GetStats() map[string]interface{} {
 // StartHTTPServer starts the cache server's HTTP API
 func (cs *CacheServer) StartHTTPServer() error {
 	mux := http.NewServeMux()
-	
+
 	// API endpoints
 	mux.HandleFunc("/cache/", cs.handleCacheRequest)
 	mux.HandleFunc("/stats", cs.handleStatsRequest)
 	mux.HandleFunc("/cleanup", cs.handleCleanupRequest)
 	mux.HandleFunc("/health", cs.handleHealthCheck)
-	
+
 	cs.httpServer = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cs.config.Host, cs.config.Port),
 		Handler: cs.authMiddleware(mux),
 	}
-	
+
 	// Start cleanup routine
 	go cs.periodicCleanup()
-	
+
 	log.Printf("Starting cache server on %s:%d", cs.config.Host, cs.config.Port)
 	return cs.httpServer.ListenAndServe()
 }
@@ -642,7 +692,7 @@ func (cs *CacheServer) authMiddleware(next http.Handler) http.Handler {
 // HTTP Handlers
 func (cs *CacheServer) handleCacheRequest(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Path[len("/cache/"):]
-	
+
 	switch r.Method {
 	case "GET":
 		response, err := cs.Get(key)
@@ -650,34 +700,34 @@ func (cs *CacheServer) handleCacheRequest(w http.ResponseWriter, r *http.Request
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
-		
+
 	case "PUT":
 		var request CacheRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		
+
 		if err := cs.Put(key, &request); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"status": "cached"})
-		
+
 	case "DELETE":
 		if err := cs.Delete(key); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
-		
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -694,7 +744,7 @@ func (cs *CacheServer) handleCleanupRequest(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "cleaned"})
 }
@@ -708,7 +758,7 @@ func (cs *CacheServer) handleHealthCheck(w http.ResponseWriter, r *http.Request)
 func (cs *CacheServer) periodicCleanup() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		if err := cs.Cleanup(); err != nil {
 			log.Printf("Cleanup error: %v", err)
@@ -722,18 +772,18 @@ func cacheServerMain() {
 	if len(os.Args) > 1 {
 		configFile = os.Args[1]
 	}
-	
+
 	config, err := loadCacheConfig(configFile)
 	if err != nil {
 		log.Fatalf("Failed to load cache config: %v", err)
 	}
-	
+
 	// Create and start cache server
 	server, err := NewCacheServer(config)
 	if err != nil {
 		log.Fatalf("Failed to create cache server: %v", err)
 	}
-	
+
 	log.Printf("Starting cache server on %s:%d", config.Host, config.Port)
 	if err := server.StartHTTPServer(); err != nil {
 		log.Fatalf("Failed to start HTTP server: %v", err)
@@ -752,18 +802,18 @@ func loadCacheConfig(filename string) (*CacheConfig, error) {
 				StorageType:    "filesystem",
 				StorageDir:     "/tmp/gradle-cache-server",
 				MaxCacheSize:   10 * 1024 * 1024 * 1024, // 10GB
-				TTL:            86400, // 24 hours
+				TTL:            24 * time.Hour,          // 24 hours
 				Compression:    true,
 				Authentication: false,
 			}, nil
 		}
 		return nil, err
 	}
-	
+
 	var config CacheConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	
+
 	return &config, nil
 }

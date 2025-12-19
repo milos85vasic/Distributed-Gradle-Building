@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributed-gradle-cache
+  namespace: staging
+  labels:
+    app: distributed-gradle-cache
+    environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-gradle-cache
+  template:
+    metadata:
+      labels:
+        app: distributed-gradle-cache
+        environment: staging
+    spec:
+      containers:
+      - name: cache
+        image: your-registry.com/distributed-gradle-cache:staging
+        ports:
+        - containerPort: 8083
+          name: http
+        env:
+        - name: CACHE_PORT
+          value: "8083"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MAX_CACHE_SIZE
+          value: "10GB"
+        - name: GIN_MODE
+          value: "release"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: cache-data
+          mountPath: /app/data/cache
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: cache-data
+        persistentVolumeClaim:
+          claimName: cache-data-pvc
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cache-data-pvc
+  namespace: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: distributed-gradle-cache
+  namespace: staging
+  labels:
+    app: distributed-gradle-cache
+    environment: staging
+spec:
+  selector:
+    app: distributed-gradle-cache
+  ports:
+  - name: http
+    port: 8083
+    targetPort: 8083
+  type: ClusterIP

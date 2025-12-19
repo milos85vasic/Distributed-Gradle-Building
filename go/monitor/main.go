@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -27,7 +26,7 @@ type Monitor struct {
 
 // loadMonitorConfig loads monitor configuration from file
 func loadMonitorConfig(filename string) (*MonitorConfig, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		// Return default config if file doesn't exist
 		if os.IsNotExist(err) {

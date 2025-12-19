@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributed-gradle-coordinator
+  namespace: staging
+  labels:
+    app: distributed-gradle-coordinator
+    environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-gradle-coordinator
+  template:
+    metadata:
+      labels:
+        app: distributed-gradle-coordinator
+        environment: staging
+    spec:
+      containers:
+      - name: coordinator
+        image: your-registry.com/distributed-gradle-coordinator:staging
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8081
+          name: rpc
+        env:
+        - name: COORDINATOR_PORT
+          value: "8080"
+        - name: COORDINATOR_RPC_PORT
+          value: "8081"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: GIN_MODE
+          value: "release"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: distributed-gradle-coordinator
+  namespace: staging
+  labels:
+    app: distributed-gradle-coordinator
+    environment: staging
+spec:
+  selector:
+    app: distributed-gradle-coordinator
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: rpc
+    port: 8081
+    targetPort: 8081
+  type: ClusterIP

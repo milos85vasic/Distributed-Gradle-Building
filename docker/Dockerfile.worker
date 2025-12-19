@@ -16,8 +16,11 @@ RUN go mod download
 # Copy source code
 COPY go/ ./
 
+# Remove main.go from root to avoid conflict
+RUN rm -f main.go
+
 # Build the worker binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker worker.go
+RUN cd worker && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker-binary main.go && mv worker-binary ../
 
 # Final stage
 FROM alpine:latest
@@ -32,10 +35,14 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/worker .
+COPY --from=builder /app/worker-binary ./worker
 
 # Create necessary directories for Gradle and worker data
 RUN mkdir -p /app/data /app/logs /app/config /app/gradle-home /app/work-dir /app/cache
+
+# Copy entrypoint script
+COPY docker/entrypoint-worker.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Set environment variables for Java/Gradle
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk

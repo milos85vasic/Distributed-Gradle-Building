@@ -16,8 +16,11 @@ RUN go mod download
 # Copy source code
 COPY go/ ./
 
+# Remove main.go from root to avoid conflict
+RUN rm -f main.go
+
 # Build the coordinator binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o coordinator main.go
+RUN cd coordinator && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o coordinator-binary main.go && mv coordinator-binary ../
 
 # Final stage
 FROM alpine:latest
@@ -32,7 +35,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/coordinator .
+COPY --from=builder /app/coordinator-binary ./coordinator
 
 # Create necessary directories
 RUN mkdir -p /app/data /app/logs /app/config
@@ -48,7 +51,7 @@ EXPOSE 8080 8081
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/api/status || exit 1
+  CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Default command
 CMD ["./coordinator"]

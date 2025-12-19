@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
@@ -28,26 +27,26 @@ type WorkerNode struct {
 
 // WorkerMetrics tracks worker performance metrics
 type WorkerMetrics struct {
-	BuildCount      int
-	TotalBuildTime  time.Duration
-	CpuUsage        float64
-	MemoryUsage     uint64
-	DiskUsage       uint64
-	LastBuildTime   time.Time
+	BuildCount       int
+	TotalBuildTime   time.Duration
+	CpuUsage         float64
+	MemoryUsage      uint64
+	DiskUsage        uint64
+	LastBuildTime    time.Time
 	AverageBuildTime time.Duration
 }
 
 // WorkerConfig contains worker configuration
 type WorkerConfig struct {
-	ID            string   `json:"id"`
-	Host          string   `json:"host"`
-	Port          int      `json:"port"`
-	Coordinator   string   `json:"coordinator"`
-	CacheDir      string   `json:"cache_dir"`
-	WorkDir       string   `json:"work_dir"`
-	MaxBuilds     int      `json:"max_builds"`
-	Capabilities  []string `json:"capabilities"`
-	GradleHome    string   `json:"gradle_home"`
+	ID           string   `json:"id"`
+	Host         string   `json:"host"`
+	Port         int      `json:"port"`
+	Coordinator  string   `json:"coordinator"`
+	CacheDir     string   `json:"cache_dir"`
+	WorkDir      string   `json:"work_dir"`
+	MaxBuilds    int      `json:"max_builds"`
+	Capabilities []string `json:"capabilities"`
+	GradleHome   string   `json:"gradle_home"`
 }
 
 // BuildPlugin interface for extending worker capabilities
@@ -60,22 +59,22 @@ type BuildPlugin interface {
 
 // WorkerService implements the RPC service for build workers
 type WorkerService struct {
-	worker    *WorkerNode
-	config    *WorkerConfig
-	plugins   []BuildPlugin
-	builds    chan BuildRequestCoordinator
-	mutex     sync.RWMutex
+	worker  *WorkerNode
+	config  *WorkerConfig
+	plugins []BuildPlugin
+	builds  chan BuildRequestCoordinator
+	mutex   sync.RWMutex
 }
 
 // BuildRequestCoordinator forwarded from coordinator
 type BuildRequestCoordinator struct {
-	ProjectPath   string
-	TaskName      string
-	WorkerID      string
-	CacheEnabled  bool
-	BuildOptions  map[string]string
-	Timestamp     time.Time
-	RequestID     string
+	ProjectPath  string
+	TaskName     string
+	WorkerID     string
+	CacheEnabled bool
+	BuildOptions map[string]string
+	Timestamp    time.Time
+	RequestID    string
 }
 
 // NewWorkerNode creates a new worker node
@@ -95,19 +94,19 @@ func NewWorkerNode(config *WorkerConfig) *WorkerNode {
 // NewWorkerService creates a new worker service
 func NewWorkerService(config *WorkerConfig) *WorkerService {
 	worker := NewWorkerNode(config)
-	
+
 	service := &WorkerService{
 		worker: worker,
 		config: config,
 		builds: make(chan BuildRequestCoordinator, 10),
 	}
-	
+
 	// Load plugins
 	service.loadPlugins()
-	
+
 	// Start build processor
 	go service.processBuilds()
-	
+
 	return service
 }
 
@@ -117,13 +116,13 @@ func (ws *WorkerService) loadPlugins() {
 	if _, err := os.Stat(pluginsDir); os.IsNotExist(err) {
 		return
 	}
-	
-	files, err := ioutil.ReadDir(pluginsDir)
+
+	files, err := os.ReadDir(pluginsDir)
 	if err != nil {
 		log.Printf("Error reading plugins directory: %v", err)
 		return
 	}
-	
+
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".so" {
 			pluginPath := filepath.Join(pluginsDir, file.Name())
@@ -154,7 +153,7 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 	ws.worker.Status = "building"
 	startTime := time.Now()
 	ws.worker.mutex.Unlock()
-	
+
 	defer func() {
 		ws.worker.mutex.Lock()
 		duration := time.Since(startTime)
@@ -165,7 +164,7 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 		ws.worker.Status = "idle"
 		ws.worker.mutex.Unlock()
 	}()
-	
+
 	// Run pre-build plugins
 	for _, plugin := range ws.plugins {
 		if err := plugin.PreBuild(request.ProjectPath, request.BuildOptions); err != nil {
@@ -173,7 +172,7 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 			return err
 		}
 	}
-	
+
 	// Prepare build environment
 	gradleHome := ws.config.GradleHome
 	if gradleHome == "" {
@@ -185,11 +184,11 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 			return fmt.Errorf("failed to create gradle home: %v", err)
 		}
 	}
-	
+
 	// Execute build
 	cmd := exec.Command("gradle", request.TaskName)
 	cmd.Dir = request.ProjectPath
-	
+
 	// Set environment variables
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("GRADLE_USER_HOME=%s", gradleHome))
@@ -198,50 +197,50 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 		env = append(env, fmt.Sprintf("GRADLE_CACHE_DIR=%s", ws.config.CacheDir))
 	}
 	cmd.Env = env
-	
+
 	// Add build options
 	for key, value := range request.BuildOptions {
 		cmd.Args = append(cmd.Args, fmt.Sprintf("-P%s=%s", key, value))
 	}
-	
+
 	output, err := cmd.CombinedOutput()
 	log.Printf("Build output for %s: %s", request.RequestID, string(output))
-	
+
 	if err != nil {
 		log.Printf("Build failed for %s: %v", request.RequestID, err)
 		return err
 	}
-	
+
 	// Find build artifacts
 	artifacts := ws.findArtifacts(request.ProjectPath)
-	
+
 	// Run post-build plugins
 	for _, plugin := range ws.plugins {
 		if err := plugin.PostBuild(request.ProjectPath, artifacts); err != nil {
 			log.Printf("Post-build plugin %s failed: %v", plugin.GetName(), err)
 		}
 	}
-	
+
 	// Cleanup
 	if ws.config.GradleHome == "" {
 		if err := os.RemoveAll(gradleHome); err != nil {
 			log.Printf("Error cleaning up gradle home: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
 // findArtifacts finds build artifacts in the project directory
 func (ws *WorkerService) findArtifacts(projectPath string) []string {
 	var artifacts []string
-	
+
 	outputDirs := []string{
 		filepath.Join(projectPath, "build/libs"),
 		filepath.Join(projectPath, "build/distributions"),
 		filepath.Join(projectPath, "build/test-results"),
 	}
-	
+
 	for _, dir := range outputDirs {
 		if _, err := os.Stat(dir); err == nil {
 			filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -252,7 +251,7 @@ func (ws *WorkerService) findArtifacts(projectPath string) []string {
 			})
 		}
 	}
-	
+
 	return artifacts
 }
 
@@ -263,7 +262,7 @@ func (ws *WorkerService) RegisterWithCoordinator() error {
 		return fmt.Errorf("failed to connect to coordinator: %v", err)
 	}
 	defer client.Close()
-	
+
 	workerInfo := map[string]interface{}{
 		"id":           ws.worker.ID,
 		"host":         ws.worker.Host,
@@ -271,13 +270,13 @@ func (ws *WorkerService) RegisterWithCoordinator() error {
 		"capabilities": ws.worker.Capabilities,
 		"status":       ws.worker.Status,
 	}
-	
+
 	var response string
 	err = client.Call("Coordinator.RegisterWorker", workerInfo, &response)
 	if err != nil {
 		return fmt.Errorf("failed to register with coordinator: %v", err)
 	}
-	
+
 	log.Printf("Registered with coordinator: %s", response)
 	return nil
 }
@@ -286,27 +285,27 @@ func (ws *WorkerService) RegisterWithCoordinator() error {
 func (ws *WorkerService) Heartbeat() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	client, err := rpc.Dial("tcp", ws.config.Coordinator)
 	if err != nil {
 		log.Printf("Failed to connect to coordinator for heartbeat: %v", err)
 		return
 	}
 	defer client.Close()
-	
+
 	for range ticker.C {
 		ws.worker.mutex.RLock()
 		metrics := ws.worker.Metrics
 		status := ws.worker.Status
 		ws.worker.mutex.RUnlock()
-		
+
 		heartbeat := map[string]interface{}{
-			"id":       ws.worker.ID,
-			"status":   status,
-			"metrics":  metrics,
+			"id":        ws.worker.ID,
+			"status":    status,
+			"metrics":   metrics,
 			"timestamp": time.Now(),
 		}
-		
+
 		var response string
 		err := client.Call("Coordinator.Heartbeat", heartbeat, &response)
 		if err != nil {
@@ -321,12 +320,12 @@ func (ws *WorkerService) Heartbeat() {
 func (ws *WorkerService) StartRPCServer() error {
 	rpcServer := rpc.NewServer()
 	rpcServer.Register(ws)
-	
+
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", ws.config.Port))
 	if err != nil {
 		return err
 	}
-	
+
 	log.Printf("Worker %s RPC server listening on port %d", ws.worker.ID, ws.config.Port)
 	go rpcServer.Accept(listener)
 	return nil
@@ -363,23 +362,23 @@ func workerMain() {
 	if len(os.Args) > 1 {
 		configFile = os.Args[1]
 	}
-	
+
 	config, err := loadWorkerConfig(configFile)
 	if err != nil {
 		log.Fatalf("Failed to load worker config: %v", err)
 	}
-	
+
 	// Create worker service
 	service := NewWorkerService(config)
-	
+
 	// Register with coordinator
 	if err := service.RegisterWithCoordinator(); err != nil {
 		log.Printf("Warning: Failed to register with coordinator: %v", err)
 	}
-	
+
 	// Start heartbeat
 	go service.Heartbeat()
-	
+
 	// Start RPC server
 	log.Printf("Starting worker %s on %s:%d", config.ID, config.Host, config.Port)
 	if err := service.StartRPCServer(); err != nil {
@@ -389,41 +388,41 @@ func workerMain() {
 
 // loadWorkerConfig loads worker configuration from file
 func loadWorkerConfig(filename string) (*WorkerConfig, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var config WorkerConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	
+
 	// Set defaults
 	if config.Host == "" {
 		hostname, _ := os.Hostname()
 		config.Host = hostname
 	}
-	
+
 	if config.Port == 0 {
 		config.Port = 8082
 	}
-	
+
 	if config.CacheDir == "" {
 		config.CacheDir = "/tmp/gradle-cache"
 	}
-	
+
 	if config.WorkDir == "" {
 		config.WorkDir = "/tmp/gradle-work"
 	}
-	
+
 	if config.MaxBuilds == 0 {
 		config.MaxBuilds = 5
 	}
-	
+
 	if len(config.Capabilities) == 0 {
 		config.Capabilities = []string{"gradle", "java", "testing"}
 	}
-	
+
 	return &config, nil
 }

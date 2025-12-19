@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributed-gradle-worker
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: distributed-gradle-worker
+  template:
+    metadata:
+      labels:
+        app: distributed-gradle-worker
+        environment: staging
+    spec:
+      containers:
+      - name: worker
+        image: your-registry.com/distributed-gradle-worker:staging
+        ports:
+        - containerPort: 8082
+          name: http
+        env:
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: WORKER_PORT
+          value: "8082"
+        - name: COORDINATOR_HOST
+          value: "distributed-gradle-coordinator.staging.svc.cluster.local"
+        - name: COORDINATOR_RPC_PORT
+          value: "8081"
+        - name: CACHE_HOST
+          value: "distributed-gradle-cache.staging.svc.cluster.local"
+        - name: CACHE_PORT
+          value: "8083"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MAX_BUILDS
+          value: "5"
+        - name: GIN_MODE
+          value: "release"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+        - name: gradle-home
+          mountPath: /app/gradle-home
+        - name: cache
+          mountPath: /app/cache
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      - name: gradle-home
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: distributed-gradle-worker
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  selector:
+    app: distributed-gradle-worker
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 8082
+  type: ClusterIP

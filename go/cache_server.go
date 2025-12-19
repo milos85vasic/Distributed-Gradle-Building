@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -393,7 +392,7 @@ func (fs *FileSystemStorage) Get(key string) (*CacheEntry, error) {
 	entryPath := filepath.Join(fs.baseDir, key)
 	metaPath := entryPath + ".meta"
 
-	data, err := ioutil.ReadFile(metaPath)
+	data, err := os.ReadFile(metaPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil // Not found
@@ -431,7 +430,7 @@ func (fs *FileSystemStorage) List() ([]*CacheEntry, error) {
 
 	var entries []*CacheEntry
 
-	files, err := ioutil.ReadDir(fs.baseDir)
+	files, err := os.ReadDir(fs.baseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -567,7 +566,7 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 
 	// Load data
 	dataPath := filepath.Join(cs.storageDir, key+".data")
-	data, err := ioutil.ReadFile(dataPath)
+	data, err := os.ReadFile(dataPath)
 	if err != nil {
 		delete(cs.cache, key)
 		cs.missCount++
@@ -792,7 +791,7 @@ func cacheServerMain() {
 
 // loadCacheConfig loads cache configuration from file
 func loadCacheConfig(filename string) (*CacheConfig, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		// Return default config if file doesn't exist
 		if os.IsNotExist(err) {

@@ -16,8 +16,11 @@ RUN go mod download
 # Copy source code
 COPY go/ ./
 
+# Remove main.go from root to avoid conflict
+RUN rm -f main.go
+
 # Build the cache server binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cache_server cache_server.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cache_server cache_server.go cache_server_main.go
 
 # Final stage
 FROM alpine:latest

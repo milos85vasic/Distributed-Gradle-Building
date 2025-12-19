@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
@@ -30,7 +29,7 @@ type WorkerService struct {
 
 // loadWorkerConfig loads worker configuration from file
 func loadWorkerConfig(filename string) (*WorkerConfig, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		// Return default config if file doesn't exist
 		if os.IsNotExist(err) {

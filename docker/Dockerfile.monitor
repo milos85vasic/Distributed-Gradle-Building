@@ -16,8 +16,11 @@ RUN go mod download
 # Copy source code
 COPY go/ ./
 
+# Remove main.go from root to avoid conflict
+RUN rm -f main.go
+
 # Build the monitor binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o monitor monitor.go
+RUN cd monitor && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o monitor-binary main.go && mv monitor-binary ../
 
 # Final stage
 FROM alpine:latest
@@ -32,10 +35,14 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/monitor .
+COPY --from=builder /app/monitor-binary ./monitor
 
 # Create necessary directories for monitoring data
 RUN mkdir -p /app/data /app/logs /app/config
+
+# Copy entrypoint script
+COPY docker/entrypoint-monitor.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Change ownership
 RUN chown -R appuser:appgroup /app
@@ -51,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8084/health || exit 1
 
 # Default command
-CMD ["./monitor"]
+CMD ["/app/entrypoint.sh"]

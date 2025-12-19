@@ -99,7 +99,14 @@ cleanup_test_environment() {
 update_test_results() {
     local duration=0
     if [[ -n "$TEST_START_TIME" && -n "$TEST_END_TIME" ]]; then
-        duration=$(date -d "$TEST_END_TIME" +%s) - $(date -d "$TEST_START_TIME" +%s)
+        # Cross-platform date calculation
+        if command -v gdate >/dev/null 2>&1; then
+            # GNU date (Linux)
+            duration=$(gdate -d "$TEST_END_TIME" +%s) - $(gdate -d "$TEST_START_TIME" +%s)
+        else
+            # BSD date (macOS) - simplified calculation
+            duration=$(($(date -j -f "%Y-%m-%d %H:%M:%S" "$TEST_END_TIME" +%s) - $(date -j -f "%Y-%m-%d %H:%M:%S" "$TEST_START_TIME" +%s)))
+        fi
     fi
     
     local pass_rate=0
@@ -765,26 +772,129 @@ run_unit_tests() {
 
 run_integration_tests() {
     start_test_group "Integration Tests"
-    
+
     # API integration tests
     run_api_integration_tests
-    
+
     # Component integration tests
     run_component_integration_tests
-    
+
+    # End-to-end tests
+    run_end_to_end_tests
+
     end_test_group "Integration Tests"
+}
+
+run_api_integration_tests() {
+    log_info "Running API integration tests..."
+
+    # Test coordinator API
+    if curl -s "http://localhost:8080/api/status" >/dev/null 2>&1; then
+        log_success "Coordinator API is accessible"
+    else
+        log_error "Coordinator API is not accessible"
+    fi
+
+    # Test cache server API
+    if curl -s "http://localhost:8083/health" >/dev/null 2>&1; then
+        log_success "Cache server API is accessible"
+    else
+        log_error "Cache server API is not accessible"
+    fi
+
+    # Test monitor API
+    if curl -s "http://localhost:8084/health" >/dev/null 2>&1; then
+        log_success "Monitor API is accessible"
+    else
+        log_error "Monitor API is not accessible"
+    fi
+}
+
+run_component_integration_tests() {
+    log_info "Running component integration tests..."
+
+    # Test Go integration tests
+    if cd "$PROJECT_DIR/go" && go test ./tests/integration -v -timeout 30s >/dev/null 2>&1; then
+        log_success "Go component integration tests passed"
+    else
+        log_error "Go component integration tests failed"
+    fi
+}
+
+run_end_to_end_tests() {
+    log_info "Running end-to-end tests..."
+
+    # Run the comprehensive end-to-end test
+    if bash "$TEST_DIR/integration/test_end_to_end.sh" >/dev/null 2>&1; then
+        log_success "End-to-end tests passed"
+    else
+        log_error "End-to-end tests failed"
+    fi
 }
 
 run_performance_tests() {
     start_test_group "Performance Tests"
-    
+
     # Build performance tests
     run_build_performance_tests
-    
+
     # Cache performance tests
     run_cache_performance_tests
-    
+
+    # Worker performance tests
+    run_worker_performance_tests
+
+    # Load testing
+    run_load_tests
+
     end_test_group "Performance Tests"
+}
+
+run_build_performance_tests() {
+    log_info "Running build performance tests..."
+
+    # Test Go build performance
+    local start_time=$(date +%s)
+    if cd "$PROJECT_DIR/go" && go test -bench=. -run=^$ -count=3 ./... >/dev/null 2>&1; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        log_success "Build performance test completed in ${duration}s"
+    else
+        log_error "Build performance test failed"
+    fi
+}
+
+run_cache_performance_tests() {
+    log_info "Running cache performance tests..."
+
+    # Test cache operations performance
+    if bash "$TEST_DIR/performance/test_cache_performance.sh" >/dev/null 2>&1; then
+        log_success "Cache performance tests passed"
+    else
+        log_error "Cache performance tests failed"
+    fi
+}
+
+run_worker_performance_tests() {
+    log_info "Running worker performance tests..."
+
+    # Test worker pool performance
+    if bash "$TEST_DIR/performance/test_worker_pool_performance_test.go" >/dev/null 2>&1; then
+        log_success "Worker performance tests passed"
+    else
+        log_error "Worker performance tests failed"
+    fi
+}
+
+run_load_tests() {
+    log_info "Running load tests..."
+
+    # Test system under load
+    if bash "$TEST_DIR/load/test_stress_test.sh" >/dev/null 2>&1; then
+        log_success "Load tests passed"
+    else
+        log_error "Load tests failed"
+    fi
 }
 
 run_security_tests() {

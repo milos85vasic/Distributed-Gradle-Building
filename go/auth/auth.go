@@ -2,27 +2,28 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"distributed-gradle-building/errors"
+	"github.com/dgrijalva/jwt-go"
 )
 
 // AuthService handles authentication and authorization
 type AuthService struct {
-	secretKey      []byte
-	tokenTTL       time.Duration
-	allowedTokens  map[string]bool
-	adminTokens    map[string]bool
+	secretKey     []byte
+	tokenTTL      time.Duration
+	allowedTokens map[string]bool
+	adminTokens   map[string]bool
 }
 
 // Claims represents JWT claims
 type Claims struct {
-	UserID   string   `json:"user_id"`
-	Role     string   `json:"role"`
+	UserID      string   `json:"user_id"`
+	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
 	jwt.StandardClaims
 }
@@ -46,7 +47,7 @@ func (a *AuthService) GenerateToken(userID, role string, permissions []string) (
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(a.tokenTTL).Unix(),
 			IssuedAt:  time.Now().Unix(),
-			Subject:    userID,
+			Subject:   userID,
 		},
 	}
 
@@ -175,7 +176,7 @@ func CORSMiddleware(allowedOrigins, allowedMethods, allowedHeaders []string) fun
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			
+
 			// Check if origin is allowed
 			allowed := false
 			for _, allowedOrigin := range allowedOrigins {

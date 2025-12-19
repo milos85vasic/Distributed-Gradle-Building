@@ -7,34 +7,34 @@ import (
 
 // BuildRequest represents a distributed build request
 type BuildRequest struct {
-	ProjectPath   string            `json:"project_path"`
-	TaskName      string            `json:"task_name"`
-	WorkerID      string            `json:"worker_id"`
-	CacheEnabled  bool              `json:"cache_enabled"`
-	BuildOptions  map[string]string `json:"build_options"`
-	Timestamp     time.Time         `json:"timestamp"`
-	RequestID     string            `json:"request_id"`
+	ProjectPath  string            `json:"project_path"`
+	TaskName     string            `json:"task_name"`
+	WorkerID     string            `json:"worker_id"`
+	CacheEnabled bool              `json:"cache_enabled"`
+	BuildOptions map[string]string `json:"build_options"`
+	Timestamp    time.Time         `json:"timestamp"`
+	RequestID    string            `json:"request_id"`
 }
 
 // BuildResponse represents response from a build worker
 type BuildResponse struct {
-	Success       bool           `json:"success"`
-	WorkerID      string         `json:"worker_id"`
-	BuildDuration time.Duration  `json:"build_duration"`
-	Artifacts     []string       `json:"artifacts"`
-	ErrorMessage  string         `json:"error_message"`
-	Metrics       BuildMetrics   `json:"metrics"`
-	RequestID     string         `json:"request_id"`
-	Timestamp     time.Time       `json:"timestamp"`
+	Success       bool          `json:"success"`
+	WorkerID      string        `json:"worker_id"`
+	BuildDuration time.Duration `json:"build_duration"`
+	Artifacts     []string      `json:"artifacts"`
+	ErrorMessage  string        `json:"error_message"`
+	Metrics       BuildMetrics  `json:"metrics"`
+	RequestID     string        `json:"request_id"`
+	Timestamp     time.Time     `json:"timestamp"`
 }
 
 // BuildMetrics contains detailed build performance metrics
 type BuildMetrics struct {
-	BuildSteps     []BuildStep    `json:"build_steps"`
-	CacheHitRate   float64        `json:"cache_hit_rate"`
-	CompiledFiles  int            `json:"compiled_files"`
-	TestResults    TestResults     `json:"test_results"`
-	ResourceUsage  ResourceMetrics `json:"resource_usage"`
+	BuildSteps    []BuildStep     `json:"build_steps"`
+	CacheHitRate  float64         `json:"cache_hit_rate"`
+	CompiledFiles int             `json:"compiled_files"`
+	TestResults   TestResults     `json:"test_results"`
+	ResourceUsage ResourceMetrics `json:"resource_usage"`
 }
 
 // BuildStep represents individual build step metrics
@@ -48,12 +48,12 @@ type BuildStep struct {
 
 // TestResults contains test execution results
 type TestResults struct {
-	TotalTests    int           `json:"total_tests"`
-	PassedTests   int           `json:"passed_tests"`
-	FailedTests   int           `json:"failed_tests"`
-	SkippedTests  int           `json:"skipped_tests"`
-	TestDuration  time.Duration `json:"test_duration"`
-	Coverage      float64       `json:"coverage"`
+	TotalTests   int           `json:"total_tests"`
+	PassedTests  int           `json:"passed_tests"`
+	FailedTests  int           `json:"failed_tests"`
+	SkippedTests int           `json:"skipped_tests"`
+	TestDuration time.Duration `json:"test_duration"`
+	Coverage     float64       `json:"coverage"`
 }
 
 // ResourceMetrics tracks resource utilization during build
@@ -79,19 +79,19 @@ type WorkerInfo struct {
 // WorkerPool manages distributed build workers
 type WorkerPool struct {
 	Workers    map[string]*Worker `json:"workers"`
-	MaxWorkers int              `json:"max_workers"`
-	Mutex      sync.RWMutex      `json:"-"`
+	MaxWorkers int                `json:"max_workers"`
+	Mutex      sync.RWMutex       `json:"-"`
 }
 
 // Worker represents a distributed build worker
 type Worker struct {
-	ID           string         `json:"id"`
-	Host         string         `json:"host"`
-	Port         int            `json:"port"`
-	Status       string         `json:"status"`
-	LastCheckin  time.Time      `json:"last_checkin"`
-	BuildCount   int            `json:"build_count"`
-	Capabilities []string       `json:"capabilities"`
+	ID           string          `json:"id"`
+	Host         string          `json:"host"`
+	Port         int             `json:"port"`
+	Status       string          `json:"status"`
+	LastCheckin  time.Time       `json:"last_checkin"`
+	BuildCount   int             `json:"build_count"`
+	Capabilities []string        `json:"capabilities"`
 	Resources    ResourceMetrics `json:"resources"`
 }
 
@@ -118,33 +118,34 @@ type WorkerConfig struct {
 
 // CacheConfig holds configuration for cache server
 type CacheConfig struct {
-	Port           int    `json:"port"`
-	StorageType    string `json:"storage_type"`
-	StorageDir     string `json:"storage_dir"`
-	RedisAddr      string `json:"redis_addr"`
-	RedisPassword  string `json:"redis_password"`
-	S3Bucket       string `json:"s3_bucket"`
-	S3Region       string `json:"s3_region"`
-	MaxCacheSize   int64  `json:"max_cache_size"`
-	TTL            int    `json:"ttl"`
+	Port            int           `json:"port"`
+	StorageType     string        `json:"storage_type"`
+	StorageDir      string        `json:"storage_dir"`
+	RedisAddr       string        `json:"redis_addr"`
+	RedisPassword   string        `json:"redis_password"`
+	S3Bucket        string        `json:"s3_bucket"`
+	S3Region        string        `json:"s3_region"`
+	MaxCacheSize    int64         `json:"max_cache_size"`
+	TTL             int           `json:"ttl"`
+	CleanupInterval time.Duration `json:"cleanup_interval"`
 }
 
 // MonitorConfig holds configuration for monitoring service
 type MonitorConfig struct {
-	Port              int                    `json:"port"`
-	MetricsInterval   time.Duration         `json:"metrics_interval"`
-	AlertThresholds   map[string]float64    `json:"alert_thresholds"`
-	EnablePrometheus  bool                   `json:"enable_prometheus"`
-	EnableJaeger      bool                   `json:"enable_jaeger"`
-	JaegerEndpoint    string                 `json:"jaeger_endpoint"`
+	Port             int                `json:"port"`
+	MetricsInterval  time.Duration      `json:"metrics_interval"`
+	AlertThresholds  map[string]float64 `json:"alert_thresholds"`
+	EnablePrometheus bool               `json:"enable_prometheus"`
+	EnableJaeger     bool               `json:"enable_jaeger"`
+	JaegerEndpoint   string             `json:"jaeger_endpoint"`
 }
 
 // ClientConfig holds configuration for HTTP client
 type ClientConfig struct {
-	BaseURL      string        `json:"base_url"`
-	Timeout      time.Duration `json:"timeout"`
-	MaxRetries   int           `json:"max_retries"`
-	RetryDelay   time.Duration `json:"retry_delay"`
-	AuthEnabled  bool          `json:"auth_enabled"`
-	AuthToken    string        `json:"auth_token"`
+	BaseURL     string        `json:"base_url"`
+	Timeout     time.Duration `json:"timeout"`
+	MaxRetries  int           `json:"max_retries"`
+	RetryDelay  time.Duration `json:"retry_delay"`
+	AuthEnabled bool          `json:"auth_enabled"`
+	AuthToken   string        `json:"auth_token"`
 }

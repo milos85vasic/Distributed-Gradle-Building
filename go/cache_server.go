@@ -548,7 +548,7 @@ func (cs *CacheServer) periodicCleanup() {
 	}
 }
 
-func main() {
+func cacheServerMain() {
 	// Load configuration
 	configFile := "cache_config.json"
 	if len(os.Args) > 1 {

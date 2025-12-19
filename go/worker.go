@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/rpc"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"plugin"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -63,12 +63,12 @@ type WorkerService struct {
 	worker    *WorkerNode
 	config    *WorkerConfig
 	plugins   []BuildPlugin
-	builds    chan BuildRequest
+	builds    chan BuildRequestCoordinator
 	mutex     sync.RWMutex
 }
 
-// BuildRequest forwarded from coordinator
-type BuildRequest struct {
+// BuildRequestCoordinator forwarded from coordinator
+type BuildRequestCoordinator struct {
 	ProjectPath   string
 	TaskName      string
 	WorkerID      string
@@ -99,7 +99,7 @@ func NewWorkerService(config *WorkerConfig) *WorkerService {
 	service := &WorkerService{
 		worker: worker,
 		config: config,
-		builds: make(chan BuildRequest, 10),
+		builds: make(chan BuildRequestCoordinator, 10),
 	}
 	
 	// Load plugins
@@ -149,7 +149,7 @@ func (ws *WorkerService) processBuilds() {
 }
 
 // executeBuild executes a Gradle build request
-func (ws *WorkerService) executeBuild(request BuildRequest) error {
+func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 	ws.worker.mutex.Lock()
 	ws.worker.Status = "building"
 	startTime := time.Now()
@@ -328,11 +328,12 @@ func (ws *WorkerService) StartRPCServer() error {
 	}
 	
 	log.Printf("Worker %s RPC server listening on port %d", ws.worker.ID, ws.config.Port)
-	return rpcServer.Accept(listener)
+	go rpcServer.Accept(listener)
+	return nil
 }
 
 // RPC Methods
-func (ws *WorkerService) Build(request BuildRequest, response *string) error {
+func (ws *WorkerService) Build(request BuildRequestCoordinator, response *string) error {
 	select {
 	case ws.builds <- request:
 		*response = fmt.Sprintf("Build request %s queued", request.RequestID)
@@ -356,7 +357,7 @@ func (ws *WorkerService) GetMetrics(args struct{}, metrics *WorkerMetrics) error
 	return nil
 }
 
-func main() {
+func workerMain() {
 	// Load configuration
 	configFile := "worker_config.json"
 	if len(os.Args) > 1 {

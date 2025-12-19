@@ -399,7 +399,8 @@ func (bc *BuildCoordinator) handleHealthCheck(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
-func main() {
+// Main coordinator application entry point
+func coordinatorMain() {
 	coordinator := NewBuildCoordinator(10)
 	
 	// Start servers in goroutines
@@ -417,4 +418,14 @@ func main() {
 	
 	// Wait for interrupt signal
 	select {}
+}
+
+// Helper function to start coordinator
+func runCoordinator() {
+	coordinatorMain()
+}
+
+// Main function for coordinator
+func main() {
+	coordinatorMain()
 }

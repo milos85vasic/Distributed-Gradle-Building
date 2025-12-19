@@ -7,7 +7,7 @@ set -euo pipefail
 # Import test framework
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_ROOT="$(dirname "$SCRIPT_DIR")"
-source "$TEST_ROOT/tests/test_framework.sh"
+source "$TEST_ROOT/test_framework.sh"
 
 # Test data
 TEST_PROJECT_DIR="/tmp/gradle-test-$$"

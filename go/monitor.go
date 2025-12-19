@@ -3,12 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -650,7 +648,7 @@ func (m *Monitor) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func main() {
+func monitorMain() {
 	// Load configuration
 	configFile := "monitor_config.json"
 	if len(os.Args) > 1 {

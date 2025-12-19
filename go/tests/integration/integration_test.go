@@ -7,58 +7,58 @@ import (
 	"net/rpc"
 	"testing"
 	"time"
-	
-	"distributed-gradle-building/types"
-	"distributed-gradle-building/coordinatorpkg"
-	"distributed-gradle-building/workerpkg"
+
 	"distributed-gradle-building/cachepkg"
+	"distributed-gradle-building/coordinatorpkg"
 	"distributed-gradle-building/monitorpkg"
+	"distributed-gradle-building/types"
+	"distributed-gradle-building/workerpkg"
 )
 
 // Test full workflow from build submission to completion
 func TestCompleteBuildWorkflow(t *testing.T) {
-	// Setup all services
-	coord := setupCoordinator(t, 8080, 8081)
+	// Setup all services with unique ports
+	coord, coordPort := setupCoordinator(t, 0) // Use dynamic port
 	defer coord.Shutdown()
-	
-	worker := setupWorker(t, "worker-1", 8082, 8080)
+
+	worker := setupWorker(t, "worker-1", 0, coordPort) // Worker connects to coordinator
 	defer worker.Shutdown()
-	
-	cache := setupCache(t, 8083)
+
+	cache := setupCache(t, 0) // Use dynamic port
 	defer cache.Shutdown()
-	
-	monitor := setupMonitor(t, 8084)
+
+	monitor := setupMonitor(t, 0) // Use dynamic port
 	defer monitor.Shutdown()
-	
+
 	// Start all services
 	go func() {
 		if err := worker.StartServer(); err != nil {
 			t.Errorf("Worker server failed: %v", err)
 		}
 	}()
-	
+
 	// Give services time to start
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Submit build request
 	buildRequest := types.BuildRequest{
-		ProjectPath: "/tmp/test-project",
-		TaskName:    "build",
+		ProjectPath:  "/tmp/test-project",
+		TaskName:     "build",
 		CacheEnabled: true,
 		BuildOptions: map[string]string{"clean": "false"},
 	}
-	
+
 	buildID, err := coord.SubmitBuild(buildRequest)
 	if err != nil {
 		t.Fatalf("Failed to submit build: %v", err)
 	}
-	
+
 	// Record build start in monitor
 	monitor.RecordBuildStart(buildID, "worker-1")
-	
+
 	// Simulate build execution
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Record build completion
 	resourceUsage := monitorpkg.ResourceMetrics{
 		CPUPercent:    75.5,
@@ -67,20 +67,20 @@ func TestCompleteBuildWorkflow(t *testing.T) {
 		NetworkIO:     1024 * 1024 * 5,
 		MaxMemoryUsed: 1024 * 1024 * 120,
 	}
-	
-	monitor.RecordBuildComplete(buildID, true, time.Second*2, true, 
+
+	monitor.RecordBuildComplete(buildID, true, time.Second*2, true,
 		[]string{"artifact1.jar", "artifact2.jar"}, resourceUsage)
-	
+
 	// Verify build status
 	status, err := coord.GetBuildStatus(buildID)
 	if err != nil {
 		t.Fatalf("Failed to get build status: %v", err)
 	}
-	
+
 	if status.RequestID != buildID {
 		t.Errorf("Expected build ID %s, got %s", buildID, status.RequestID)
 	}
-	
+
 	// Verify worker status
 	// Note: Metrics collection would be handled by monitoring service
 	// For now, just verify the build completed or is in progress
@@ -91,47 +91,47 @@ func TestCompleteBuildWorkflow(t *testing.T) {
 
 // Test worker registration and communication
 func TestWorkerRegistrationAndRPC(t *testing.T) {
-	coord := setupCoordinator(t, 8085, 8086)
+	coord, coordPort := setupCoordinator(t, 0)
 	defer coord.Shutdown()
-	
-	worker := setupWorker(t, "worker-2", 8087, 8085)
+
+	worker := setupWorker(t, "worker-2", 0, coordPort)
 	defer worker.Shutdown()
-	
+
 	// Start worker server
 	go func() {
 		if err := worker.StartServer(); err != nil {
 			t.Errorf("Worker server failed: %v", err)
 		}
 	}()
-	
+
 	// Give server time to start
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Test RPC communication with worker
-	client, err := rpc.Dial("tcp", ":8087")
+	client, err := rpc.Dial("tcp", fmt.Sprintf(":%d", worker.Config.RPCPort))
 	if err != nil {
 		t.Fatalf("Failed to connect to worker RPC: %v", err)
 	}
 	defer client.Close()
-	
+
 	// Test ping
 	var pingReply struct{}
 	err = client.Call("WorkerService.Ping", struct{}{}, &pingReply)
 	if err != nil {
 		t.Errorf("Worker ping failed: %v", err)
 	}
-	
+
 	// Test status
 	var status workerpkg.WorkerStatus
 	err = client.Call("WorkerService.GetStatus", struct{}{}, &status)
 	if err != nil {
 		t.Errorf("Worker status failed: %v", err)
 	}
-	
+
 	if status.ID != "worker-2" && status.ID != "worker-1" { // Allow fallback
 		t.Logf("Expected worker ID worker-2, got %s (acceptable)", status.ID)
 	}
-	
+
 	if !status.IsHealthy {
 		t.Error("Expected worker to be healthy")
 	}
@@ -141,34 +141,34 @@ func TestWorkerRegistrationAndRPC(t *testing.T) {
 func TestCacheArtifactStorage(t *testing.T) {
 	cache := setupCache(t, 8088)
 	defer cache.Shutdown()
-	
+
 	// Store build artifacts
 	artifacts := map[string][]byte{
-		"app.jar":     []byte("mock jar content"),
+		"app.jar":       []byte("mock jar content"),
 		"resources.zip": []byte("mock zip content"),
 	}
-	
+
 	for name, data := range artifacts {
 		err := cache.Put(name, data, map[string]string{
-			"type": "artifact",
+			"type":     "artifact",
 			"build_id": "test-build-1",
 		})
 		if err != nil {
 			t.Fatalf("Failed to store artifact %s: %v", name, err)
 		}
 	}
-	
+
 	// Retrieve artifacts
 	for name, expectedData := range artifacts {
 		entry, err := cache.Get(name)
 		if err != nil {
 			t.Fatalf("Failed to retrieve artifact %s: %v", name, err)
 		}
-		
+
 		if string(entry.Data) != string(expectedData) {
 			t.Errorf("Artifact %s data mismatch", name)
 		}
-		
+
 		if entry.Metadata["type"] != "artifact" {
 			t.Errorf("Expected artifact type, got %s", entry.Metadata["type"])
 		}
@@ -179,25 +179,25 @@ func TestCacheArtifactStorage(t *testing.T) {
 func TestMonitorAlertingSystem(t *testing.T) {
 	monitor := setupMonitor(t, 8089)
 	defer monitor.Shutdown()
-	
+
 	// Simulate high failure rate scenario
 	for i := 0; i < 10; i++ {
 		buildID := fmt.Sprintf("build-%d", i)
 		monitor.RecordBuildStart(buildID, "worker-1")
-		
+
 		// Make 80% fail
 		success := i < 2
 		resourceUsage := monitorpkg.ResourceMetrics{}
 		monitor.RecordBuildComplete(buildID, success, time.Second, false, []string{}, resourceUsage)
 	}
-	
+
 	// Check alert thresholds
 	monitor.CheckAlertThresholds()
-	
+
 	// Verify alert was triggered
 	alerts := monitor.GetAlerts()
 	foundAlert := false
-	
+
 	for _, alert := range alerts {
 		if alert.Type == "high_failure_rate" && !alert.Resolved {
 			foundAlert = true
@@ -207,7 +207,7 @@ func TestMonitorAlertingSystem(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !foundAlert {
 		t.Error("Expected high failure rate alert to be triggered")
 	}
@@ -215,34 +215,34 @@ func TestMonitorAlertingSystem(t *testing.T) {
 
 // Test concurrent build submissions
 func TestConcurrentBuildSubmissions(t *testing.T) {
-	coord := setupCoordinator(t, 8090, 8091)
+	coord, _ := setupCoordinator(t, 0)
 	defer coord.Shutdown()
-	
+
 	const numBuilds = 20
 	buildIDs := make([]string, numBuilds)
-	
+
 	// Submit builds concurrently
 	for i := 0; i < numBuilds; i++ {
 		go func(index int) {
 			request := types.BuildRequest{
-				ProjectPath: fmt.Sprintf("/tmp/project-%d", index),
-				TaskName:    "build",
+				ProjectPath:  fmt.Sprintf("/tmp/project-%d", index),
+				TaskName:     "build",
 				CacheEnabled: true,
 			}
-			
+
 			buildID, err := coord.SubmitBuild(request)
 			if err != nil {
 				t.Errorf("Failed to submit build %d: %v", index, err)
 				return
 			}
-			
+
 			buildIDs[index] = buildID
 		}(i)
 	}
-	
+
 	// Wait for all submissions to complete
 	time.Sleep(200 * time.Millisecond)
-	
+
 	// Verify all builds were submitted
 	successCount := 0
 	for _, buildID := range buildIDs {
@@ -250,7 +250,7 @@ func TestConcurrentBuildSubmissions(t *testing.T) {
 			successCount++
 		}
 	}
-	
+
 	if successCount < numBuilds {
 		t.Errorf("Expected %d successful submissions, got %d", numBuilds, successCount)
 	}
@@ -259,61 +259,61 @@ func TestConcurrentBuildSubmissions(t *testing.T) {
 // Test HTTP API endpoints across services
 func TestHTTPAPIEndpoints(t *testing.T) {
 	// Setup services
-	coord := setupCoordinator(t, 8092, 8093)
+	coord, _ := setupCoordinator(t, 0)
 	defer coord.Shutdown()
-	
+
 	worker := setupWorker(t, "worker-3", 8094, 8092)
 	defer worker.Shutdown()
-	
+
 	cache := setupCache(t, 8095)
 	defer cache.Shutdown()
-	
+
 	monitor := setupMonitor(t, 8096)
 	defer monitor.Shutdown()
-	
+
 	// Test coordinator API
 	testCoordAPI(t, coord)
-	
+
 	// Test cache API
 	testCacheAPI(t, cache)
-	
+
 	// Test monitor API
 	testMonitorAPI(t, monitor)
 }
 
 // Test error scenarios and recovery
 func TestErrorScenariosAndRecovery(t *testing.T) {
-	coord := setupCoordinator(t, 8097, 8098)
+	coord, _ := setupCoordinator(t, 0)
 	defer coord.Shutdown()
-	
+
 	// Test invalid build request
 	invalidRequest := types.BuildRequest{
 		ProjectPath: "", // Invalid empty path
 		TaskName:    "build",
 	}
-	
+
 	_, err := coord.SubmitBuild(invalidRequest)
 	if err == nil {
 		t.Logf("Note: No error returned for invalid build request (implementation may accept)")
 	}
-	
+
 	// Test non-existent build status
 	_, err = coord.GetBuildStatus("non-existent")
 	if err == nil {
 		t.Error("Expected error for non-existent build")
 	}
-	
+
 	// Test worker beyond capacity
 	coord2 := coordinatorpkg.NewBuildCoordinator(1) // Max 1 worker
-	
+
 	worker1 := &coordinatorpkg.Worker{ID: "worker-1", Host: "localhost", Port: 8099}
 	worker2 := &coordinatorpkg.Worker{ID: "worker-2", Host: "localhost", Port: 8100}
-	
+
 	err = coord2.RegisterWorker(worker1)
 	if err != nil {
 		t.Errorf("Failed to register first worker: %v", err)
 	}
-	
+
 	err = coord2.RegisterWorker(worker2)
 	if err == nil {
 		t.Error("Expected error when exceeding max workers")
@@ -324,18 +324,18 @@ func TestErrorScenariosAndRecovery(t *testing.T) {
 func TestResourceCleanupAndMemoryManagement(t *testing.T) {
 	cache := setupCache(t, 8101)
 	defer cache.Shutdown()
-	
+
 	// Add many cache entries
 	for i := 0; i < 100; i++ {
 		key := fmt.Sprintf("test-key-%d", i)
 		data := []byte(fmt.Sprintf("test-data-%d", i))
-		
+
 		err := cache.Put(key, data, map[string]string{"index": fmt.Sprintf("%d", i)})
 		if err != nil {
 			t.Fatalf("Failed to store entry %d: %v", i, err)
 		}
 	}
-	
+
 	// Verify entries were added
 	// Note: Direct metrics access not available, verify through cache operations
 	if cache.Config.StorageType == "memory" {
@@ -346,7 +346,7 @@ func TestResourceCleanupAndMemoryManagement(t *testing.T) {
 		// For filesystem cache, entries are stored on disk
 		t.Logf("Cache entries added successfully (filesystem cache)")
 	}
-	
+
 	// Delete entries
 	for i := 0; i < 50; i++ {
 		key := fmt.Sprintf("test-key-%d", i)
@@ -355,42 +355,71 @@ func TestResourceCleanupAndMemoryManagement(t *testing.T) {
 			t.Errorf("Failed to delete entry %d: %v", i, err)
 		}
 	}
-	
+
 	// Verify entries were deleted
 	// Note: Direct metrics access not available, verify through cache operations
 	t.Logf("Cache entries deleted successfully")
 }
 
 // Helper functions to setup services
-func setupCoordinator(t *testing.T, httpPort, rpcPort int) *coordinatorpkg.BuildCoordinator {
+func setupCoordinator(t *testing.T, httpPort int) (*coordinatorpkg.BuildCoordinator, int) {
 	coord := coordinatorpkg.NewBuildCoordinator(10)
-	
+
+	// If port is 0, let the OS assign a free port
+	if httpPort == 0 {
+		// For testing, we'll use a fixed port range to avoid conflicts
+		// In a real implementation, we'd need to get the actual port from the server
+		httpPort = 18080 + (int(time.Now().UnixNano()) % 10000) // Use ports 18080-28079
+	}
+
+	rpcPort := httpPort + 1 // RPC port is HTTP port + 1
+
 	// Start HTTP server in background
 	go func() {
-		if err := coord.StartServer(httpPort, rpcPort); err != nil {
-			t.Errorf("Coordinator server failed: %v", err)
+		if err := coord.StartServer(httpPort); err != nil && err != http.ErrServerClosed {
+			t.Errorf("Coordinator HTTP server failed: %v", err)
 		}
 	}()
-	
-	// Give server time to start
-	time.Sleep(50 * time.Millisecond)
-	return coord
+
+	// Start RPC server in background
+	go func() {
+		if err := coord.StartRPCServer(rpcPort); err != nil {
+			t.Errorf("Coordinator RPC server failed: %v", err)
+		}
+	}()
+
+	// Give servers time to start
+	time.Sleep(100 * time.Millisecond)
+	return coord, httpPort
 }
 
 func setupWorker(t *testing.T, id string, rpcPort, coordPort int) *workerpkg.WorkerService {
+	// If rpcPort is 0, assign a dynamic port
+	if rpcPort == 0 {
+		rpcPort = 19080 + (int(time.Now().UnixNano()) % 10000) // Use ports 19080-29079
+	}
+
+	// Coordinator RPC port is coordPort + 1
+	coordinatorRPCPort := coordPort + 1
+
 	config := types.WorkerConfig{
 		ID:             id,
-		CoordinatorURL:  fmt.Sprintf("localhost:%d", coordPort),
+		CoordinatorURL: fmt.Sprintf("localhost:%d", coordPort),
 		RPCPort:        rpcPort,
 		BuildDir:       fmt.Sprintf("/tmp/build-%s", id),
 		CacheEnabled:   true,
 		WorkerType:     "java",
 	}
-	
-	return workerpkg.NewWorkerService(id, fmt.Sprintf("localhost:%d", coordPort), config)
+
+	return workerpkg.NewWorkerService(id, fmt.Sprintf("localhost:%d", coordinatorRPCPort), config)
 }
 
 func setupCache(t *testing.T, port int) *cachepkg.CacheServer {
+	// If port is 0, assign a dynamic port
+	if port == 0 {
+		port = 20080 + (int(time.Now().UnixNano()) % 100) // Use ports 20080-20179
+	}
+
 	config := types.CacheConfig{
 		Port:            port,
 		StorageType:     "filesystem",
@@ -398,22 +427,27 @@ func setupCache(t *testing.T, port int) *cachepkg.CacheServer {
 		TTL:             time.Hour,
 		CleanupInterval: time.Minute,
 	}
-	
+
 	cache := cachepkg.NewCacheServer(config)
-	
+
 	// Start server in background
 	go func() {
 		if err := cache.StartServer(); err != nil {
 			t.Errorf("Cache server failed: %v", err)
 		}
 	}()
-	
+
 	// Give server time to start
 	time.Sleep(50 * time.Millisecond)
 	return cache
 }
 
 func setupMonitor(t *testing.T, port int) *monitorpkg.Monitor {
+	// If port is 0, assign a dynamic port
+	if port == 0 {
+		port = 21080 + (int(time.Now().UnixNano()) % 100) // Use ports 21080-21179
+	}
+
 	config := types.MonitorConfig{
 		Port:            port,
 		MetricsInterval: time.Second,
@@ -422,16 +456,16 @@ func setupMonitor(t *testing.T, port int) *monitorpkg.Monitor {
 			"queue_length":       10,
 		},
 	}
-	
+
 	monitor := monitorpkg.NewMonitor(config)
-	
+
 	// Start server in background
 	go func() {
 		if err := monitor.StartServer(); err != nil {
 			t.Errorf("Monitor server failed: %v", err)
 		}
 	}()
-	
+
 	// Give server time to start
 	time.Sleep(50 * time.Millisecond)
 	return monitor
@@ -443,17 +477,17 @@ func testCoordAPI(t *testing.T, coord *coordinatorpkg.BuildCoordinator) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(coord.HandleStatus)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Coordinator status API returned status %d", rr.Code)
 	}
-	
+
 	// Test workers endpoint
 	req, _ = http.NewRequest("GET", "/api/workers", nil)
 	rr = httptest.NewRecorder()
 	handler = http.HandlerFunc(coord.HandleWorkers)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Coordinator workers API returned status %d", rr.Code)
 	}
@@ -465,17 +499,17 @@ func testCacheAPI(t *testing.T, cache *cachepkg.CacheServer) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(cache.HandleHealth)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Cache health API returned status %d", rr.Code)
 	}
-	
+
 	// Test metrics endpoint
 	req, _ = http.NewRequest("GET", "/api/metrics", nil)
 	rr = httptest.NewRecorder()
 	handler = http.HandlerFunc(cache.HandleMetrics)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Cache metrics API returned status %d", rr.Code)
 	}
@@ -487,17 +521,17 @@ func testMonitorAPI(t *testing.T, monitor *monitorpkg.Monitor) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(monitor.HandleHealth)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Monitor health API returned status %d", rr.Code)
 	}
-	
+
 	// Test metrics endpoint
 	req, _ = http.NewRequest("GET", "/api/metrics", nil)
 	rr = httptest.NewRecorder()
 	handler = http.HandlerFunc(monitor.HandleMetrics)
 	handler.ServeHTTP(rr, req)
-	
+
 	if rr.Code != http.StatusOK {
 		t.Errorf("Monitor metrics API returned status %d", rr.Code)
 	}

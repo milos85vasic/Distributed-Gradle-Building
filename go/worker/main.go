@@ -48,6 +48,17 @@ type BuildRequest struct {
 	RequestID    string
 }
 
+// RPC argument and reply types for heartbeat
+type HeartbeatArgs struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type HeartbeatReply struct {
+	Message string `json:"message"`
+}
+
 // WorkerService represents a build worker
 type WorkerService struct {
 	config     *WorkerConfig

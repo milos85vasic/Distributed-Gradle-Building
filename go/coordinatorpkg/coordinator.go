@@ -10,7 +10,7 @@ import (
 	"net/rpc"
 	"sync"
 	"time"
-	
+
 	"distributed-gradle-building/types"
 )
 
@@ -26,14 +26,27 @@ type Worker struct {
 
 // BuildCoordinator manages distributed builds across workers
 type BuildCoordinator struct {
-	workers      map[string]*Worker
-	buildQueue   chan types.BuildRequest
-	builds       map[string]*types.BuildResponse
-	mutex        sync.RWMutex
-	httpServer   *http.Server
-	rpcServer    *rpc.Server
-	shutdown     chan struct{}
-	maxWorkers   int
+	workers    map[string]*Worker
+	buildQueue chan types.BuildRequest
+	builds     map[string]*types.BuildResponse
+	mutex      sync.RWMutex
+	httpServer *http.Server
+	rpcServer  *rpc.Server
+	shutdown   chan struct{}
+	maxWorkers int
+}
+
+// RPC argument and reply types for worker registration
+type RegisterWorkerArgs struct {
+	ID           string   `json:"id"`
+	Host         string   `json:"host"`
+	Port         int      `json:"port"`
+	Capabilities []string `json:"capabilities"`
+	Status       string   `json:"status"`
+}
+
+type RegisterWorkerReply struct {
+	Message string `json:"message"`
 }
 
 // NewBuildCoordinator creates a new build coordinator
@@ -47,20 +60,45 @@ func NewBuildCoordinator(maxWorkers int) *BuildCoordinator {
 	}
 }
 
-// RegisterWorker adds a new worker to the pool
+// RegisterWorker adds a new worker to the pool (internal method)
 func (bc *BuildCoordinator) RegisterWorker(worker *Worker) error {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if len(bc.workers) >= bc.maxWorkers {
 		return fmt.Errorf("maximum workers (%d) reached", bc.maxWorkers)
 	}
-	
-	worker.Status = "idle"
-	worker.LastPing = time.Now()
+
 	bc.workers[worker.ID] = worker
-	
 	log.Printf("Worker %s registered from %s:%d", worker.ID, worker.Host, worker.Port)
+	return nil
+}
+
+// RegisterWorkerRPC is the RPC method for worker registration
+func (bc *BuildCoordinator) RegisterWorkerRPC(args *RegisterWorkerArgs, reply *RegisterWorkerReply) error {
+	log.Printf("RegisterWorkerRPC called with args: %+v", args)
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
+
+	if len(bc.workers) >= bc.maxWorkers {
+		return fmt.Errorf("maximum workers (%d) reached", bc.maxWorkers)
+	}
+
+	worker := &Worker{
+		ID:       args.ID,
+		Host:     args.Host,
+		Port:     args.Port,
+		Status:   "idle",
+		LastPing: time.Now(),
+		Metadata: map[string]interface{}{
+			"capabilities": args.Capabilities,
+		},
+	}
+
+	bc.workers[worker.ID] = worker
+
+	log.Printf("Worker %s registered from %s:%d", worker.ID, worker.Host, worker.Port)
+	reply.Message = fmt.Sprintf("Worker %s registered successfully", worker.ID)
 	return nil
 }
 
@@ -68,7 +106,7 @@ func (bc *BuildCoordinator) RegisterWorker(worker *Worker) error {
 func (bc *BuildCoordinator) UnregisterWorker(workerID string) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if _, exists := bc.workers[workerID]; exists {
 		delete(bc.workers, workerID)
 		log.Printf("Worker %s unregistered", workerID)
@@ -79,13 +117,13 @@ func (bc *BuildCoordinator) UnregisterWorker(workerID string) {
 func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, error) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if request.RequestID == "" {
 		request.RequestID = generateBuildID()
 	}
-	
+
 	request.Timestamp = time.Now()
-	
+
 	// Store initial build response
 	response := &types.BuildResponse{
 		RequestID: request.RequestID,
@@ -93,7 +131,7 @@ func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, err
 		Success:   false,
 	}
 	bc.builds[request.RequestID] = response
-	
+
 	// Add to queue
 	select {
 	case bc.buildQueue <- request:
@@ -108,12 +146,12 @@ func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, err
 func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*types.BuildResponse, error) {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
-	
+
 	response, exists := bc.builds[buildID]
 	if !exists {
 		return nil, fmt.Errorf("build %s not found", buildID)
 	}
-	
+
 	return response, nil
 }
 
@@ -121,68 +159,68 @@ func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*types.BuildResponse
 func (bc *BuildCoordinator) GetWorkers() []Worker {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
-	
+
 	workers := make([]Worker, 0, len(bc.workers))
 	for _, worker := range bc.workers {
 		workers = append(workers, *worker)
 	}
-	
+
 	return workers
 }
 
-// StartServer starts the HTTP and RPC servers
-func (bc *BuildCoordinator) StartServer(httpPort, rpcPort int) error {
-	// Start HTTP server
+// StartServer starts the HTTP server
+func (bc *BuildCoordinator) StartServer(port int) error {
 	mux := http.NewServeMux()
+
+	// API endpoints
 	mux.HandleFunc("/api/builds", bc.handleBuilds)
 	mux.HandleFunc("/api/workers", bc.handleWorkers)
-	mux.HandleFunc("/api/status", bc.HandleStatus)
-	
+	mux.HandleFunc("/api/health", bc.handleHealth)
+
 	bc.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", httpPort),
+		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
-	
-	go func() {
-		log.Printf("HTTP server listening on port %d", httpPort)
-		if err := bc.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-		}
-	}()
-	
-	// Start RPC server
-	bc.rpcServer = rpc.NewServer()
-	rpc.Register(bc)
-	
-	rpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", rpcPort))
+
+	log.Printf("HTTP server listening on port %d", port)
+	return bc.httpServer.ListenAndServe()
+}
+
+// StartRPCServer starts the RPC server for worker registration
+func (bc *BuildCoordinator) StartRPCServer(port int) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return fmt.Errorf("failed to start RPC listener: %v", err)
 	}
-	
-	go func() {
-		log.Printf("RPC server listening on port %d", rpcPort)
-		for {
-			conn, err := rpcListener.Accept()
-			if err != nil {
-				break
-			}
-			go bc.rpcServer.ServeConn(conn)
-		}
-	}()
-	
+
+	bc.rpcServer = rpc.NewServer()
+	err = bc.rpcServer.RegisterName("BuildCoordinator", bc)
+	if err != nil {
+		return fmt.Errorf("RPC registration failed: %v", err)
+	}
+
+	log.Printf("RPC server listening on port %d", port)
+	go bc.rpcServer.Accept(listener)
+
 	return nil
+}
+
+// handleHealth handles health check requests
+func (bc *BuildCoordinator) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
 // Shutdown gracefully shuts down the coordinator
 func (bc *BuildCoordinator) Shutdown() error {
 	close(bc.shutdown)
-	
+
 	if bc.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		bc.httpServer.Shutdown(ctx)
+		return bc.httpServer.Shutdown(ctx)
 	}
-	
+
 	return nil
 }
 
@@ -200,32 +238,32 @@ func (bc *BuildCoordinator) handleBuilds(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		
+
 		buildID, err := bc.SubmitBuild(request)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"build_id": buildID})
-		
+
 	case http.MethodGet:
 		buildID := r.URL.Query().Get("id")
 		if buildID == "" {
 			http.Error(w, "Missing build_id parameter", http.StatusBadRequest)
 			return
 		}
-		
+
 		response, err := bc.GetBuildStatus(buildID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
-		
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -237,7 +275,7 @@ func (bc *BuildCoordinator) handleWorkers(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	workers := bc.GetWorkers()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(workers)
@@ -250,7 +288,7 @@ func (bc *BuildCoordinator) HandleStatus(w http.ResponseWriter, r *http.Request)
 		"queue":   len(bc.buildQueue),
 		"builds":  len(bc.builds),
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
 }

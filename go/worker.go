@@ -431,7 +431,4 @@ func loadWorkerConfig(filename string) (*WorkerConfig, error) {
 	return &config, nil
 }
 
-// Main function for worker
-func main() {
-	workerMain()
-}
+// Main function removed - use worker/main.go instead

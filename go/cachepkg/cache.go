@@ -217,7 +217,6 @@ func (cs *CacheServer) Get(key string) (*CacheEntry, error) {
 // Put stores a cache entry
 func (cs *CacheServer) Put(key string, data []byte, metadata map[string]string) error {
 	cs.Mutex.Lock()
-	defer cs.Mutex.Unlock()
 	
 	entry := &CacheEntry{
 		Key:       key,
@@ -229,10 +228,14 @@ func (cs *CacheServer) Put(key string, data []byte, metadata map[string]string) 
 	
 	err := cs.Storage.Put(key, entry)
 	if err != nil {
+		cs.Mutex.Unlock()
 		return err
 	}
 	
 	cs.Metrics.Operations["put"]++
+	cs.Mutex.Unlock()
+	
+	// Update metrics outside of lock to avoid deadlock
 	cs.updateMetrics()
 	return nil
 }
@@ -240,14 +243,17 @@ func (cs *CacheServer) Put(key string, data []byte, metadata map[string]string) 
 // Delete removes a cache entry
 func (cs *CacheServer) Delete(key string) error {
 	cs.Mutex.Lock()
-	defer cs.Mutex.Unlock()
 	
 	err := cs.Storage.Delete(key)
 	if err != nil {
+		cs.Mutex.Unlock()
 		return err
 	}
 	
 	cs.Metrics.Operations["delete"]++
+	cs.Mutex.Unlock()
+	
+	// Update metrics outside of lock to avoid deadlock
 	cs.updateMetrics()
 	return nil
 }

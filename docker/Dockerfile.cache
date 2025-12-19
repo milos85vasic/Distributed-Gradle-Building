@@ -19,8 +19,8 @@ COPY go/ ./
 # Remove main.go from root to avoid conflict
 RUN rm -f main.go
 
-# Build the cache server binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cache_server cache_server.go cache_server_main.go
+    # Build the cache server binary
+    RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cache_server cache_server.go cache_server_main.go
 
 # Final stage
 FROM alpine:latest
@@ -40,6 +40,10 @@ COPY --from=builder /app/cache_server .
 # Create necessary directories for cache data
 RUN mkdir -p /app/data/cache /app/logs /app/config
 
+# Copy entrypoint script
+COPY docker/entrypoint-cache.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Change ownership
 RUN chown -R appuser:appgroup /app
 
@@ -54,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8083/health || exit 1
 
 # Default command
-CMD ["./cache_server"]
+CMD ["/app/entrypoint.sh"]

@@ -14,13 +14,13 @@ import (
 
 // BuildRequest represents a distributed build request
 type BuildRequest struct {
-	ProjectPath   string
-	TaskName      string
-	WorkerID      string
-	CacheEnabled  bool
-	BuildOptions  map[string]string
-	Timestamp     time.Time
-	RequestID     string
+	ProjectPath  string
+	TaskName     string
+	WorkerID     string
+	CacheEnabled bool
+	BuildOptions map[string]string
+	Timestamp    time.Time
+	RequestID    string
 }
 
 // BuildResponse represents the response from a build worker
@@ -37,29 +37,29 @@ type BuildResponse struct {
 
 // BuildMetrics contains detailed build performance metrics
 type BuildMetrics struct {
-	BuildSteps     []BuildStep
-	CacheHitRate   float64
-	CompiledFiles  int
-	TestResults    TestResults
-	ResourceUsage  ResourceMetrics
+	BuildSteps    []BuildStep
+	CacheHitRate  float64
+	CompiledFiles int
+	TestResults   TestResults
+	ResourceUsage ResourceMetrics
 }
 
 // BuildStep represents individual build step metrics
 type BuildStep struct {
-	Name        string        `json:"name"`
-	Duration    time.Duration `json:"duration"`
-	Status      string        `json:"status"`
-	Artifacts   []string      `json:"artifacts"`
-	StartTime   time.Time     `json:"start_time"`
-	EndTime     time.Time     `json:"end_time"`
+	Name      string        `json:"name"`
+	Duration  time.Duration `json:"duration"`
+	Status    string        `json:"status"`
+	Artifacts []string      `json:"artifacts"`
+	StartTime time.Time     `json:"start_time"`
+	EndTime   time.Time     `json:"end_time"`
 }
 
 // TestResults represents test execution results
 type TestResults struct {
-	Total    int `json:"total"`
-	Passed   int `json:"passed"`
-	Failed   int `json:"failed"`
-	Skipped  int `json:"skipped"`
+	Total    int           `json:"total"`
+	Passed   int           `json:"passed"`
+	Failed   int           `json:"failed"`
+	Skipped  int           `json:"skipped"`
 	Duration time.Duration `json:"duration"`
 }
 
@@ -73,35 +73,73 @@ type ResourceMetrics struct {
 
 // Worker represents a build worker node
 type Worker struct {
-	ID           string            `json:"id"`
-	Host         string            `json:"host"`
-	Port         int               `json:"port"`
-	Status       string            `json:"status"`
-	Capabilities []string          `json:"capabilities"`
-	LastPing     time.Time         `json:"last_ping"`
-	Builds       []BuildRequest    `json:"builds"`
-	Metrics      WorkerMetrics     `json:"metrics"`
+	ID           string         `json:"id"`
+	Host         string         `json:"host"`
+	Port         int            `json:"port"`
+	Status       string         `json:"status"`
+	Capabilities []string       `json:"capabilities"`
+	LastPing     time.Time      `json:"last_ping"`
+	Builds       []BuildRequest `json:"builds"`
+	Metrics      WorkerMetrics  `json:"metrics"`
 }
 
 // WorkerMetrics tracks worker performance
 type WorkerMetrics struct {
-	BuildCount         int           `json:"build_count"`
-	TotalBuildTime     time.Duration `json:"total_build_time"`
-	AverageBuildTime   time.Duration `json:"average_build_time"`
-	SuccessRate        float64       `json:"success_rate"`
-	LastBuildTime      time.Time     `json:"last_build_time"`
+	BuildCount       int           `json:"build_count"`
+	TotalBuildTime   time.Duration `json:"total_build_time"`
+	AverageBuildTime time.Duration `json:"average_build_time"`
+	SuccessRate      float64       `json:"success_rate"`
+	LastBuildTime    time.Time     `json:"last_build_time"`
 }
 
 // BuildCoordinator manages the distributed build system
 type BuildCoordinator struct {
-	workers      map[string]*Worker
-	buildQueue   chan BuildRequest
-	builds       map[string]*BuildResponse
-	mutex        sync.RWMutex
-	httpServer   *http.Server
-	rpcServer    *rpc.Server
-	shutdown     chan struct{}
-	maxWorkers   int
+	workers    map[string]*Worker
+	buildQueue chan BuildRequest
+	builds     map[string]*BuildResponse
+	mutex      sync.RWMutex
+	httpServer *http.Server
+	rpcServer  *rpc.Server
+	shutdown   chan struct{}
+	maxWorkers int
+}
+
+// Test RPC method to verify registration works
+func (bc *BuildCoordinator) Test(args *string, reply *string) error {
+	log.Printf("Test RPC method called with: %s", *args)
+	*reply = "RPC test successful: " + *args
+	return nil
+}
+
+// RPC argument and reply types
+type RegisterWorkerArgs struct {
+	ID           string   `json:"id"`
+	Host         string   `json:"host"`
+	Port         int      `json:"port"`
+	Capabilities []string `json:"capabilities"`
+	Status       string   `json:"status"`
+}
+
+type RegisterWorkerReply struct {
+	Message string `json:"message"`
+}
+
+type HeartbeatArgs struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type HeartbeatReply struct {
+	Message string `json:"message"`
+}
+
+type UnregisterWorkerArgs struct {
+	ID string `json:"id"`
+}
+
+type UnregisterWorkerReply struct {
+	Message string `json:"message"`
 }
 
 // NewBuildCoordinator creates a new build coordinator
@@ -116,44 +154,78 @@ func NewBuildCoordinator(maxWorkers int) *BuildCoordinator {
 }
 
 // RegisterWorker adds a new worker to the pool
-func (bc *BuildCoordinator) RegisterWorker(worker *Worker) error {
+// RPC method signature: func (t *T) MethodName(args *ArgType, reply *ReplyType) error
+func (bc *BuildCoordinator) RegisterWorker(args *RegisterWorkerArgs, reply *RegisterWorkerReply) error {
+	log.Printf("RegisterWorker called with args: %+v", args)
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if len(bc.workers) >= bc.maxWorkers {
 		return fmt.Errorf("maximum workers (%d) reached", bc.maxWorkers)
 	}
-	
-	worker.Status = "idle"
-	worker.LastPing = time.Now()
+
+	worker := &Worker{
+		ID:           args.ID,
+		Host:         args.Host,
+		Port:         args.Port,
+		Status:       "idle",
+		Capabilities: args.Capabilities,
+		LastPing:     time.Now(),
+	}
+
 	bc.workers[worker.ID] = worker
-	
+
 	log.Printf("Worker %s registered from %s:%d", worker.ID, worker.Host, worker.Port)
+	reply.Message = fmt.Sprintf("Worker %s registered successfully", worker.ID)
 	return nil
 }
 
-// UnregisterWorker removes a worker from the pool
-func (bc *BuildCoordinator) UnregisterWorker(workerID string) {
+// Heartbeat updates worker status and receives heartbeat
+// RPC method signature: func (t *T) MethodName(args *ArgType, reply *ReplyType) error
+func (bc *BuildCoordinator) Heartbeat(args *HeartbeatArgs, reply *HeartbeatReply) error {
+	log.Printf("Heartbeat called with args: %+v", args)
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
-	if _, exists := bc.workers[workerID]; exists {
-		delete(bc.workers, workerID)
-		log.Printf("Worker %s unregistered", workerID)
+
+	if worker, exists := bc.workers[args.ID]; exists {
+		worker.Status = args.Status
+		worker.LastPing = time.Now()
+
+		reply.Message = fmt.Sprintf("Heartbeat received from worker %s", args.ID)
+		log.Printf("Heartbeat from worker %s (status: %s)", args.ID, args.Status)
+		return nil
 	}
+
+	return fmt.Errorf("worker %s not found", args.ID)
+}
+
+// UnregisterWorker removes a worker from the pool
+// RPC method signature: func (t *T) MethodName(args *ArgType, reply *ReplyType) error
+func (bc *BuildCoordinator) UnregisterWorker(args *UnregisterWorkerArgs, reply *UnregisterWorkerReply) error {
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
+
+	if _, exists := bc.workers[args.ID]; exists {
+		delete(bc.workers, args.ID)
+		log.Printf("Worker %s unregistered", args.ID)
+		reply.Message = fmt.Sprintf("Worker %s unregistered successfully", args.ID)
+		return nil
+	}
+
+	return fmt.Errorf("worker %s not found", args.ID)
 }
 
 // SubmitBuild adds a build request to the queue
 func (bc *BuildCoordinator) SubmitBuild(request BuildRequest) (string, error) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if request.RequestID == "" {
 		request.RequestID = generateBuildID()
 	}
-	
+
 	request.Timestamp = time.Now()
-	
+
 	// Store initial build response
 	response := &BuildResponse{
 		RequestID: request.RequestID,
@@ -161,7 +233,7 @@ func (bc *BuildCoordinator) SubmitBuild(request BuildRequest) (string, error) {
 		Success:   false,
 	}
 	bc.builds[request.RequestID] = response
-	
+
 	// Add to queue
 	select {
 	case bc.buildQueue <- request:
@@ -176,12 +248,12 @@ func (bc *BuildCoordinator) SubmitBuild(request BuildRequest) (string, error) {
 func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*BuildResponse, error) {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
-	
+
 	response, exists := bc.builds[buildID]
 	if !exists {
 		return nil, fmt.Errorf("build %s not found", buildID)
 	}
-	
+
 	return response, nil
 }
 
@@ -189,30 +261,30 @@ func (bc *BuildCoordinator) GetBuildStatus(buildID string) (*BuildResponse, erro
 func (bc *BuildCoordinator) GetWorkers() []Worker {
 	bc.mutex.RLock()
 	defer bc.mutex.RUnlock()
-	
+
 	workers := make([]Worker, 0, len(bc.workers))
 	for _, worker := range bc.workers {
 		workers = append(workers, *worker)
 	}
-	
+
 	return workers
 }
 
 // StartHTTPServer starts the HTTP API server
 func (bc *BuildCoordinator) StartHTTPServer(port int) error {
 	mux := http.NewServeMux()
-	
+
 	// API endpoints
 	mux.HandleFunc("/api/build", bc.handleBuildRequest)
 	mux.HandleFunc("/api/builds/", bc.handleGetBuild)
 	mux.HandleFunc("/api/workers", bc.handleGetWorkers)
 	mux.HandleFunc("/api/health", bc.handleHealthCheck)
-	
+
 	bc.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
-	
+
 	log.Printf("HTTP server listening on port %d", port)
 	return bc.httpServer.ListenAndServe()
 }
@@ -223,13 +295,17 @@ func (bc *BuildCoordinator) StartRPCServer(port int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	bc.rpcServer = rpc.NewServer()
-	rpc.Register(bc)
-	
+	err = rpc.RegisterName("BuildCoordinator", bc)
+	if err != nil {
+		log.Printf("RPC registration failed: %v", err)
+		return err
+	}
+
 	log.Printf("RPC server listening on port %d", port)
 	go bc.rpcServer.Accept(listener)
-	
+
 	return nil
 }
 
@@ -250,7 +326,7 @@ func (bc *BuildCoordinator) processBuild(request BuildRequest) {
 	bc.mutex.RLock()
 	availableWorkers := bc.getAvailableWorkers()
 	bc.mutex.RUnlock()
-	
+
 	if len(availableWorkers) == 0 {
 		// Re-queue if no workers available
 		time.Sleep(5 * time.Second)
@@ -265,7 +341,7 @@ func (bc *BuildCoordinator) processBuild(request BuildRequest) {
 			return
 		}
 	}
-	
+
 	// Assign to first available worker
 	worker := availableWorkers[0]
 	bc.assignBuildToWorker(worker, request)
@@ -286,7 +362,7 @@ func (bc *BuildCoordinator) getAvailableWorkers() []*Worker {
 func (bc *BuildCoordinator) assignBuildToWorker(worker *Worker, request BuildRequest) {
 	worker.Status = "busy"
 	worker.Builds = append(worker.Builds, request)
-	
+
 	// Execute build via RPC
 	go bc.executeBuildOnWorker(worker, request)
 }
@@ -297,7 +373,7 @@ func (bc *BuildCoordinator) executeBuildOnWorker(worker *Worker, request BuildRe
 		worker.Status = "idle"
 		worker.LastPing = time.Now()
 	}()
-	
+
 	// Connect to worker RPC server
 	client, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", worker.Host, worker.Port))
 	if err != nil {
@@ -305,7 +381,7 @@ func (bc *BuildCoordinator) executeBuildOnWorker(worker *Worker, request BuildRe
 		return
 	}
 	defer client.Close()
-	
+
 	// Execute build
 	var response string
 	err = client.Call("WorkerService.Build", request, &response)
@@ -313,7 +389,7 @@ func (bc *BuildCoordinator) executeBuildOnWorker(worker *Worker, request BuildRe
 		bc.markBuildFailed(request.RequestID, fmt.Sprintf("build failed: %v", err))
 		return
 	}
-	
+
 	// Mark as successful
 	bc.markBuildCompleted(request.RequestID, worker.ID)
 }
@@ -322,7 +398,7 @@ func (bc *BuildCoordinator) executeBuildOnWorker(worker *Worker, request BuildRe
 func (bc *BuildCoordinator) markBuildCompleted(buildID, workerID string) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if response, exists := bc.builds[buildID]; exists {
 		response.Success = true
 		response.WorkerID = workerID
@@ -334,7 +410,7 @@ func (bc *BuildCoordinator) markBuildCompleted(buildID, workerID string) {
 func (bc *BuildCoordinator) markBuildFailed(buildID, errorMsg string) {
 	bc.mutex.Lock()
 	defer bc.mutex.Unlock()
-	
+
 	if response, exists := bc.builds[buildID]; exists {
 		response.Success = false
 		response.ErrorMessage = errorMsg
@@ -345,13 +421,13 @@ func (bc *BuildCoordinator) markBuildFailed(buildID, errorMsg string) {
 // Shutdown gracefully shuts down the coordinator
 func (bc *BuildCoordinator) Shutdown() {
 	close(bc.shutdown)
-	
+
 	if bc.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		bc.httpServer.Shutdown(ctx)
 	}
-	
+
 	if bc.rpcServer != nil {
 		// RPC server doesn't have explicit close method in standard library
 		// The listener will be closed when the process exits
@@ -365,31 +441,31 @@ func (bc *BuildCoordinator) handleBuildRequest(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var request BuildRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	
+
 	buildID, err := bc.SubmitBuild(request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	json.NewEncoder(w).Encode(map[string]string{"build_id": buildID})
 }
 
 func (bc *BuildCoordinator) handleGetBuild(w http.ResponseWriter, r *http.Request) {
 	buildID := r.URL.Path[len("/api/builds/"):]
-	
+
 	response, err := bc.GetBuildStatus(buildID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -411,23 +487,23 @@ func generateBuildID() string {
 // Main coordinator application entry point
 func coordinatorMain() {
 	coordinator := NewBuildCoordinator(10)
-	
+
 	// Start build queue processor
 	go coordinator.BuildQueueProcessor()
-	
+
 	// Start servers in goroutines
 	go func() {
 		if err := coordinator.StartHTTPServer(8080); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}
 	}()
-	
+
 	go func() {
 		if err := coordinator.StartRPCServer(8081); err != nil {
 			log.Fatalf("RPC server error: %v", err)
 		}
 	}()
-	
+
 	// Wait for interrupt signal
 	select {}
 }

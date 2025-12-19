@@ -796,7 +796,7 @@ func loadCacheConfig(filename string) (*CacheConfig, error) {
 		// Return default config if file doesn't exist
 		if os.IsNotExist(err) {
 			return &CacheConfig{
-				Host:           "localhost",
+				Host:           "",
 				Port:           8083,
 				StorageType:    "filesystem",
 				StorageDir:     "/tmp/gradle-cache-server",

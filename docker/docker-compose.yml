@@ -126,9 +126,14 @@ services:
     ports:
       - "8085:8083"  # Map host port 8085 to container port 8083
     environment:
+      - CACHE_HOST=0.0.0.0
       - CACHE_PORT=8083
       - LOG_LEVEL=info
-      - MAX_CACHE_SIZE=10GB
+      - MAX_CACHE_SIZE=10737418240
+      - STORAGE_DIR=/app/data/cache
+      - TTL_SECONDS=86400
+      - COMPRESSION=true
+      - AUTHENTICATION=false
     volumes:
       - cache_data:/app/data/cache
       - cache_logs:/app/logs

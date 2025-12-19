@@ -1,0 +1,41 @@
+title: "Distributed Gradle Building System"
+baseURL: "https://distributed-gradle-building.com"
+language: "en"
+
+params:
+  description: "Accelerate Gradle builds across multiple machines with distributed processing"
+  author: "Distributed Gradle Building Team"
+  github: "https://github.com/milos85vasic/Distributed-Gradle-Building"
+  demoURL: "https://demo.distributed-gradle-building.com"
+
+menu:
+  main:
+  - name: "Documentation"
+    url: "/docs"
+    weight: 10
+  - name: "Video Courses"
+    url: "/video-courses"
+    weight: 20
+  - name: "API Reference"
+    url: "/api"
+    weight: 30
+  - name: "Tutorials"
+    url: "/tutorials"
+    weight: 40
+  - name: "Blog"
+    url: "/blog"
+    weight: 50
+  - name: "Demo"
+    url: "/demo"
+    weight: 60
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    style: github
+    lineNos: true
+
+theme:
+  name: "distributed-gradle"

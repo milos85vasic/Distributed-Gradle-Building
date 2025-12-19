@@ -1,0 +1,22 @@
+<footer class="bg-dark text-light py-4 mt-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>{{ .Site.Title }}</h5>
+                <p>{{ .Site.Params.description }}</p>
+            </div>
+            <div class="col-md-6">
+                <h5>Quick Links</h5>
+                <ul class="list-unstyled">
+                    {{ range .Site.Menus.main }}
+                    <li><a href="{{ .URL | relURL }}" class="text-light">{{ .Name }}</a></li>
+                    {{ end }}
+                </ul>
+            </div>
+        </div>
+        <hr class="bg-light">
+        <div class="text-center">
+            <p>&copy; {{ now.Year }} {{ .Site.Params.author }}. All rights reserved.</p>
+        </div>
+    </div>
+</footer>

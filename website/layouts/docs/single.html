@@ -1,0 +1,47 @@
+{{ define "main" }}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-3">
+            <div class="sidebar">
+                <div class="sticky-top" style="top: 20px;">
+                    <h5>Documentation</h5>
+                    <nav class="nav flex-column">
+                        {{ range .Site.Sections }}
+                        <a class="nav-link" href="{{ .URL | relURL }}">{{ .Title }}</a>
+                        {{ range .Pages }}
+                        <a class="nav-link ms-3" href="{{ .URL | relURL }}">{{ .Title }}</a>
+                        {{ end }}
+                        {{ end }}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-9">
+            <div class="content">
+                <h1>{{ .Title }}</h1>
+                {{ .Content }}
+                
+                {{ if .Params.related }}
+                <div class="related-content mt-5">
+                    <h4>Related Topics</h4>
+                    <div class="row">
+                        {{ range .Params.related }}
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ .title }}</h6>
+                                    <p class="card-text">{{ .description }}</p>
+                                    <a href="{{ .url | relURL }}" class="btn btn-sm btn-outline-primary">Read More</a>
+                                </div>
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ end }}
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

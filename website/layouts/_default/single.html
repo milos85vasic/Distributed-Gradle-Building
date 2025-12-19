@@ -1,0 +1,38 @@
+{{ define "main" }}
+<div class="container py-5">
+    <h1>{{ .Title }}</h1>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            {{ .Content }}
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="sidebar-sticky">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Table of Contents</h5>
+                    </div>
+                    <div class="card-body">
+                        {{ .TableOfContents }}
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Quick Links</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li><a href="/docs/setup-guide">Setup Guide</a></li>
+                            <li><a href="/docs/user-guide">User Guide</a></li>
+                            <li><a href="/docs/troubleshooting">Troubleshooting</a></li>
+                            <li><a href="/docs/api-reference">API Reference</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

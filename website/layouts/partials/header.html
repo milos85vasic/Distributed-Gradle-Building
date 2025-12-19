@@ -1,0 +1,34 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" href="{{ "/" | relURL }}">
+            <i class="fas fa-cube me-2"></i>{{ .Site.Title }}
+        </a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                {{ range .Site.Menus.main }}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ .URL | relURL }}">{{ .Name }}</a>
+                </li>
+                {{ end }}
+            </ul>
+            
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ .Site.Params.github }}">
+                        <i class="fab fa-github"></i> GitHub
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link btn btn-outline-light ms-2" href="{{ .Site.Params.demoURL }}">
+                        <i class="fas fa-play me-1"></i> Live Demo
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

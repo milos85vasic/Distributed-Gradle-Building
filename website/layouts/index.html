@@ -1,0 +1,84 @@
+{{ define "main" }}
+<div class="hero-section bg-primary text-white py-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold">{{ .Title }}</h1>
+                <p class="lead">{{ .Site.Params.description }}</p>
+                <div class="hero-buttons mt-4">
+                    <a href="{{ .Site.Params.demoURL }}" class="btn btn-light btn-lg me-3">
+                        <i class="fas fa-play me-2"></i>Try Live Demo
+                    </a>
+                    <a href="{{ .Site.Params.github }}" class="btn btn-outline-light btn-lg">
+                        <i class="fab fa-github me-2"></i>View Source
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <img src="/images/architecture-overview.png" alt="Architecture Overview" class="img-fluid rounded shadow">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8">
+            {{ .Content }}
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Start</h5>
+                </div>
+                <div class="card-body">
+                    <h6>1. Clone the Repository</h6>
+                    <pre><code>git clone {{ .Site.Params.github }}</code></pre>
+                    
+                    <h6>2. Set Up Environment</h6>
+                    <pre><code>./setup_master.sh</code></pre>
+                    
+                    <h6>3. Start Building</h6>
+                    <pre><code>./sync_and_build.sh</code></pre>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Performance Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-rocket text-success"></i> 70% faster builds</li>
+                        <li><i class="fas fa-server text-info"></i> 10+ concurrent workers</li>
+                        <li><i class="fas fa-memory text-warning"></i> 50% memory reduction</li>
+                        <li><i class="fas fa-code-branch text-primary"></i> Zero code changes</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-light py-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-network-wired fa-3x text-primary mb-3"></i>
+                <h4>Distributed Processing</h4>
+                <p>Leverage multiple machines for parallel Gradle execution</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-cache fa-3x text-success mb-3"></i>
+                <h4>Smart Caching</h4>
+                <p>Intelligent dependency caching eliminates redundant work</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
+                <h4>Real-time Monitoring</h4>
+                <p>Track build progress and performance metrics live</p>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

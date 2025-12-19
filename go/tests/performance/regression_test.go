@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"distributed-gradle-building/coordinatorpkg"
-	"distributed-gradle-building/workerpkg"
 	"distributed-gradle-building/cachepkg"
+	"distributed-gradle-building/coordinatorpkg"
 	"distributed-gradle-building/types"
+	"distributed-gradle-building/workerpkg"
 )
 
 // PerformanceRegressionTest detects performance regressions
@@ -24,92 +24,92 @@ type PerformanceRegressionTest struct {
 
 // PerformanceBaseline represents historical performance data
 type PerformanceBaseline struct {
-	BuildTimeAvg         time.Duration
-	BuildTimeP95         time.Duration
-	BuildTimeP99         time.Duration
-	CacheHitRate         float64
-	Throughput           float64
-	MemoryUsage          float64
-	CPUUsage            float64
-	ErrorRate           float64
-	ConcurrencyLimit     int
-	Timestamp           time.Time
+	BuildTimeAvg     time.Duration
+	BuildTimeP95     time.Duration
+	BuildTimeP99     time.Duration
+	CacheHitRate     float64
+	Throughput       float64
+	MemoryUsage      float64
+	CPUUsage         float64
+	ErrorRate        float64
+	ConcurrencyLimit int
+	Timestamp        time.Time
 }
 
 // PerformanceMeasurement represents current performance measurement
 type PerformanceMeasurement struct {
-	BuildTimeStats       *BuildTimeStats
-	CacheMetrics         *CacheMetrics
-	ThroughputMetrics    *ThroughputMetrics
-	ResourceUsage        *ResourceUsage
-	ErrorAnalysis        *ErrorAnalysis
-	ConcurrencyLevel     int
-	MeasurementDuration  time.Duration
+	BuildTimeStats      *BuildTimeStats
+	CacheMetrics        *CacheMetrics
+	ThroughputMetrics   *ThroughputMetrics
+	ResourceUsage       *ResourceUsage
+	ErrorAnalysis       *ErrorAnalysis
+	ConcurrencyLevel    int
+	MeasurementDuration time.Duration
 	Timestamp           time.Time
 }
 
 // BuildTimeStats tracks build execution time statistics
 type BuildTimeStats struct {
-	Count       int
-	Sum         time.Duration
-	Min         time.Duration
-	Max         time.Duration
-	Avg         time.Duration
-	P50         time.Duration
-	P95         time.Duration
-	P99         time.Duration
-	StdDev      time.Duration
+	Count  int
+	Sum    time.Duration
+	Min    time.Duration
+	Max    time.Duration
+	Avg    time.Duration
+	P50    time.Duration
+	P95    time.Duration
+	P99    time.Duration
+	StdDev time.Duration
 }
 
 // CacheMetrics tracks cache performance
 type CacheMetrics struct {
-	ReadThroughput     float64
-	WriteThroughput    float64
-	HitRate           float64
-	MissRate          float64
-	EvictionRate      float64
-	AccessLatency     time.Duration
-	StorageSize        int64
+	ReadThroughput  float64
+	WriteThroughput float64
+	HitRate         float64
+	MissRate        float64
+	EvictionRate    float64
+	AccessLatency   time.Duration
+	StorageSize     int64
 }
 
 // ThroughputMetrics tracks system throughput
 type ThroughputMetrics struct {
-	RequestsPerSecond  float64
+	RequestsPerSecond float64
 	BuildsPerSecond   float64
-	WorkersUtilized    int
-	QueueLength        int
-	PeakThroughput     float64
-	AverageThroughput   float64
+	WorkersUtilized   int
+	QueueLength       int
+	PeakThroughput    float64
+	AverageThroughput float64
 }
 
 // ResourceUsage tracks system resource consumption
 type ResourceUsage struct {
-	CPUUsage           float64
-	MemoryUsage        float64
-	DiskIO            float64
-	NetworkIO          float64
-	FileDescriptors    int
-	GoroutineCount    int
+	CPUUsage        float64
+	MemoryUsage     float64
+	DiskIO          float64
+	NetworkIO       float64
+	FileDescriptors int
+	GoroutineCount  int
 }
 
 // ErrorAnalysis tracks error patterns
 type ErrorAnalysis struct {
-	TotalRequests       int
-	ErrorCount          int
-	ErrorRate           float64
-	TimeoutCount        int
-	RetryCount          int
-	ErrorTypes         map[string]int
-	ErrorTrend         float64
+	TotalRequests int
+	ErrorCount    int
+	ErrorRate     float64
+	TimeoutCount  int
+	RetryCount    int
+	ErrorTypes    map[string]int
+	ErrorTrend    float64
 }
 
 // RegressionThresholds defines performance regression detection limits
 type RegressionThresholds struct {
-	BuildTimeRegression      float64
-	MemoryUsageRegression    float64
-	CacheHitRateRegression  float64
-	ThroughputRegression    float64
-	ErrorRateRegression     float64
+	BuildTimeRegression    float64
+	MemoryUsageRegression  float64
+	CacheHitRateRegression float64
+	ThroughputRegression   float64
+	ErrorRateRegression    float64
 }
 
 // PerformanceRegression represents detected regression
@@ -134,16 +134,16 @@ func TestPerformanceRegressionDetection(t *testing.T) {
 
 	// Configure regression thresholds
 	thresholds := RegressionThresholds{
-		BuildTimeRegression:     0.15, // 15% regression allowed
-		MemoryUsageRegression:   0.20, // 20% regression allowed
-		CacheHitRateRegression:  -0.10, // 10% degradation allowed
-		ThroughputRegression:    -0.15, // 15% regression allowed
-		ErrorRateRegression:     0.50, // 50% increase allowed
+		BuildTimeRegression:    0.15,  // 15% regression allowed
+		MemoryUsageRegression:  0.20,  // 20% regression allowed
+		CacheHitRateRegression: -0.10, // 10% degradation allowed
+		ThroughputRegression:   -0.15, // 15% regression allowed
+		ErrorRateRegression:    0.50,  // 50% increase allowed
 	}
 
 	regressionTest := &PerformanceRegressionTest{
 		BaselineData: baseline,
-		Thresholds:  thresholds,
+		Thresholds:   thresholds,
 	}
 
 	// Execute performance tests
@@ -183,43 +183,43 @@ func TestScalabilityRegression(t *testing.T) {
 
 	// Verify scalability characteristics haven't regressed
 	if results.LinearRegressionScore > 0.15 { // Deviation from linear scaling
-		t.Errorf("Scalability regression detected: linear regression score = %.3f", 
+		t.Errorf("Scalability regression detected: linear regression score = %.3f",
 			results.LinearRegressionScore)
 	}
 
 	if results.MaxThroughput < scalabilityTest.BaselineData.MaxThroughput*0.9 {
-		t.Errorf("Maximum throughput regression: current=%.1f, baseline=%.1f", 
+		t.Errorf("Maximum throughput regression: current=%.1f, baseline=%.1f",
 			results.MaxThroughput, scalabilityTest.BaselineData.MaxThroughput)
 	}
 
-	t.Logf("Scalability test passed: linear score=%.3f, max throughput=%.1f req/sec", 
+	t.Logf("Scalability test passed: linear score=%.3f, max throughput=%.1f req/sec",
 		results.LinearRegressionScore, results.MaxThroughput)
 }
 
 // ScalabilityTest executes scalability testing across different concurrency levels
 type ScalabilityTest struct {
 	ConcurrencyLevels []int
-	BaselineData     *ScalabilityBaseline
-	TestDuration     time.Duration
-	Results          []*ScalabilityResult
+	BaselineData      *ScalabilityBaseline
+	TestDuration      time.Duration
+	Results           []*ScalabilityResult
 }
 
 // ScalabilityBaseline represents baseline scalability data
 type ScalabilityBaseline struct {
-	MaxThroughput      float64
+	MaxThroughput         float64
 	LinearRegressionScore float64
-	OptimalConcurrency int
-	Timestamp          time.Time
+	OptimalConcurrency    int
+	Timestamp             time.Time
 }
 
 // ScalabilityResult represents result for a specific concurrency level
 type ScalabilityResult struct {
-	Concurrency      int
-	Throughput       float64
-	AverageLatency   time.Duration
-	P95Latency       time.Duration
-	ErrorRate        float64
-	Utilization      float64
+	Concurrency    int
+	Throughput     float64
+	AverageLatency time.Duration
+	P95Latency     time.Duration
+	ErrorRate      float64
+	Utilization    float64
 }
 
 // Execute runs scalability test across all concurrency levels
@@ -255,7 +255,7 @@ func (st *ScalabilityTest) measureScalabilityAtConcurrency(t *testing.T, concurr
 	// Generate controlled workload
 	workload := &ControlledWorkload{
 		Concurrency: concurrency,
-		Duration:   st.TestDuration,
+		Duration:    st.TestDuration,
 		RequestRate: 10.0, // requests per second
 	}
 
@@ -284,7 +284,7 @@ func (st *ScalabilityTest) calculateLinearRegressionScore() float64 {
 	for _, result := range st.Results {
 		x := float64(result.Concurrency)
 		y := result.Throughput
-		
+
 		sumX += x
 		sumY += y
 		sumXY += x * y
@@ -292,7 +292,7 @@ func (st *ScalabilityTest) calculateLinearRegressionScore() float64 {
 	}
 
 	slope := (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX)
-	
+
 	// Calculate coefficient of determination (R²)
 	yMean := sumY / n
 	var totalSS, residualSS float64
@@ -301,7 +301,7 @@ func (st *ScalabilityTest) calculateLinearRegressionScore() float64 {
 		x := float64(result.Concurrency)
 		y := result.Throughput
 		predicted := slope * x // Assuming y-intercept is 0 for ideal linear scaling
-		
+
 		totalSS += (y - yMean) * (y - yMean)
 		residualSS += (y - predicted) * (y - predicted)
 	}
@@ -316,27 +316,27 @@ func (st *ScalabilityTest) calculateLinearRegressionScore() float64 {
 
 // ScalabilityTestSummary represents overall scalability test results
 type ScalabilityTestSummary struct {
-	MaxThroughput       float64
-	OptimalConcurrency  int
+	MaxThroughput         float64
+	OptimalConcurrency    int
 	LinearRegressionScore float64
 }
 
 // ControlledWorkload generates controlled testing workload
 type ControlledWorkload struct {
-	Concurrency  int
-	Duration     time.Duration
-	RequestRate  float64
-	Variance     float64
+	Concurrency int
+	Duration    time.Duration
+	RequestRate float64
+	Variance    float64
 }
 
 // WorkloadMetrics represents metrics from workload execution
 type WorkloadMetrics struct {
 	AverageThroughput float64
-	P95Throughput    float64
-	AverageLatency   time.Duration
-	P95Latency       time.Duration
-	ErrorRate        float64
-	Utilization      float64
+	P95Throughput     float64
+	AverageLatency    time.Duration
+	P95Latency        time.Duration
+	ErrorRate         float64
+	Utilization       float64
 }
 
 // ExecuteWithCoordinator executes workload against coordinator
@@ -344,12 +344,12 @@ func (cw *ControlledWorkload) ExecuteWithCoordinator(coordinator *coordinatorpkg
 	var totalRequests, completedRequests, failedRequests int64
 	var totalLatency time.Duration
 	var latencies []time.Duration
-	
+
 	startTime := time.Now()
 	endTime := startTime.Add(cw.Duration)
 
 	// Generate requests at controlled rate
-	requestInterval := time.Duration(1.0/cw.RequestRate * float64(time.Second))
+	requestInterval := time.Duration(1.0 / cw.RequestRate * float64(time.Second))
 	requestTicker := time.NewTicker(requestInterval)
 	defer requestTicker.Stop()
 
@@ -357,7 +357,7 @@ func (cw *ControlledWorkload) ExecuteWithCoordinator(coordinator *coordinatorpkg
 		select {
 		case <-requestTicker.C:
 			requestStart := time.Now()
-			
+
 			buildReq := types.BuildRequest{
 				RequestID:    fmt.Sprintf("workload-%d", totalRequests),
 				ProjectPath:  fmt.Sprintf("/tmp/workload-project-%d", totalRequests),
@@ -368,7 +368,7 @@ func (cw *ControlledWorkload) ExecuteWithCoordinator(coordinator *coordinatorpkg
 
 			_, err := coordinator.SubmitBuild(buildReq)
 			latency := time.Since(requestStart)
-			
+
 			totalRequests++
 			latencies = append(latencies, latency)
 			totalLatency += latency
@@ -408,9 +408,9 @@ func (prt *PerformanceRegressionTest) DetectRegressions() []*PerformanceRegressi
 
 	// Build time regression
 	if prt.BaselineData.BuildTimeAvg > 0 {
-		buildTimeRegression := float64(prt.CurrentData.BuildTimeStats.Avg-prt.BaselineData.BuildTimeAvg) / 
+		buildTimeRegression := float64(prt.CurrentData.BuildTimeStats.Avg-prt.BaselineData.BuildTimeAvg) /
 			float64(prt.BaselineData.BuildTimeAvg)
-		
+
 		if buildTimeRegression > prt.Thresholds.BuildTimeRegression {
 			regressions = append(regressions, &PerformanceRegression{
 				Metric:     "BuildTimeAvg",
@@ -425,9 +425,9 @@ func (prt *PerformanceRegressionTest) DetectRegressions() []*PerformanceRegressi
 
 	// Memory usage regression
 	if prt.BaselineData.MemoryUsage > 0 {
-		memoryRegression := (prt.CurrentData.ResourceUsage.MemoryUsage - prt.BaselineData.MemoryUsage) / 
+		memoryRegression := (prt.CurrentData.ResourceUsage.MemoryUsage - prt.BaselineData.MemoryUsage) /
 			prt.BaselineData.MemoryUsage
-		
+
 		if memoryRegression > prt.Thresholds.MemoryUsageRegression {
 			regressions = append(regressions, &PerformanceRegression{
 				Metric:     "MemoryUsage",
@@ -442,9 +442,9 @@ func (prt *PerformanceRegressionTest) DetectRegressions() []*PerformanceRegressi
 
 	// Cache hit rate regression
 	if prt.BaselineData.CacheHitRate > 0 {
-		cacheHitRegression := (prt.CurrentData.CacheMetrics.HitRate - prt.BaselineData.CacheHitRate) / 
+		cacheHitRegression := (prt.CurrentData.CacheMetrics.HitRate - prt.BaselineData.CacheHitRate) /
 			prt.BaselineData.CacheHitRate
-		
+
 		if cacheHitRegression < prt.Thresholds.CacheHitRateRegression {
 			regressions = append(regressions, &PerformanceRegression{
 				Metric:     "CacheHitRate",
@@ -459,9 +459,9 @@ func (prt *PerformanceRegressionTest) DetectRegressions() []*PerformanceRegressi
 
 	// Throughput regression
 	if prt.BaselineData.Throughput > 0 {
-		throughputRegression := (prt.CurrentData.ThroughputMetrics.AverageThroughput - prt.BaselineData.Throughput) / 
+		throughputRegression := (prt.CurrentData.ThroughputMetrics.AverageThroughput - prt.BaselineData.Throughput) /
 			prt.BaselineData.Throughput
-		
+
 		if throughputRegression < prt.Thresholds.ThroughputRegression {
 			regressions = append(regressions, &PerformanceRegression{
 				Metric:     "Throughput",
@@ -491,7 +491,7 @@ func (pm *PerformanceMeasurement) MeasureBuildPerformance(t *testing.T) {
 	// Execute test builds
 	for i := 0; i < 50; i++ {
 		startTime := time.Now()
-		
+
 		buildReq := types.BuildRequest{
 			RequestID:    fmt.Sprintf("perf-build-%d", i),
 			ProjectPath:  fmt.Sprintf("/tmp/perf-project-%d", i),
@@ -535,14 +535,14 @@ func (pm *PerformanceMeasurement) MeasureCachePerformance(t *testing.T) {
 
 	// Cache performance testing
 	cacheTest := &CachePerformanceTest{
-		Operations:     1000,
-		ConcurrentOps:  10,
+		Operations:    1000,
+		ConcurrentOps: 10,
 		DataSize:      1024,
 		Cache:         cache,
 	}
 
 	results := cacheTest.Execute()
-	
+
 	pm.CacheMetrics.ReadThroughput = results.ReadThroughput
 	pm.CacheMetrics.WriteThroughput = results.WriteThroughput
 	pm.CacheMetrics.HitRate = results.HitRate
@@ -553,27 +553,27 @@ func (pm *PerformanceMeasurement) MeasureCachePerformance(t *testing.T) {
 func (pm *PerformanceMeasurement) MeasureScalability(t *testing.T) {
 	scalabilityTest := &ScalabilityTest{
 		ConcurrencyLevels: []int{1, 2, 4, 8},
-		TestDuration:     15 * time.Second,
+		TestDuration:      15 * time.Second,
 	}
 
 	summary := scalabilityTest.Execute(t)
-	
+
 	pm.ThroughputMetrics = &ThroughputMetrics{
-		PeakThroughput:   summary.MaxThroughput,
+		PeakThroughput:    summary.MaxThroughput,
 		AverageThroughput: summary.MaxThroughput * 0.8, // Approximation
-		WorkersUtilized: summary.OptimalConcurrency,
+		WorkersUtilized:   summary.OptimalConcurrency,
 	}
 }
 
 // MeasureResourceUsage measures resource consumption
 func (pm *PerformanceMeasurement) MeasureResourceUsage(t *testing.T) {
 	pm.ResourceUsage = &ResourceUsage{
-		CPUUsage:         0.65, // Mock value
-		MemoryUsage:      0.45, // Mock value
+		CPUUsage:        0.65, // Mock value
+		MemoryUsage:     0.45, // Mock value
 		DiskIO:          0.20, // Mock value
-		NetworkIO:        0.15, // Mock value
-		FileDescriptors:  25,    // Mock value
-		GoroutineCount:  150,   // Mock value
+		NetworkIO:       0.15, // Mock value
+		FileDescriptors: 25,   // Mock value
+		GoroutineCount:  150,  // Mock value
 	}
 }
 
@@ -586,29 +586,29 @@ func loadPerformanceBaseline(filename string) *PerformanceBaseline {
 		BuildTimeP95:     800 * time.Millisecond,
 		BuildTimeP99:     1200 * time.Millisecond,
 		CacheHitRate:     0.85,
-		Throughput:        25.0,
-		MemoryUsage:       0.40,
+		Throughput:       25.0,
+		MemoryUsage:      0.40,
 		CPUUsage:         0.60,
 		ErrorRate:        0.02,
-		ConcurrencyLimit:  8,
-		Timestamp:         time.Now().Add(-24 * time.Hour),
+		ConcurrencyLimit: 8,
+		Timestamp:        time.Now().Add(-24 * time.Hour),
 	}
 }
 
 func loadScalabilityBaseline() *ScalabilityBaseline {
 	return &ScalabilityBaseline{
-		MaxThroughput:       50.0,
+		MaxThroughput:         50.0,
 		LinearRegressionScore: 0.05,
-		OptimalConcurrency:  8,
-		Timestamp:          time.Now().Add(-24 * time.Hour),
+		OptimalConcurrency:    8,
+		Timestamp:             time.Now().Add(-24 * time.Hour),
 	}
 }
 
 func generateRegressionReport(regressions []*PerformanceRegression) {
 	report := map[string]interface{}{
-		"timestamp":    time.Now(),
-		"regressions":  regressions,
-		"total":        len(regressions),
+		"timestamp":   time.Now(),
+		"regressions": regressions,
+		"total":       len(regressions),
 	}
 
 	jsonData, _ := json.MarshalIndent(report, "", "  ")
@@ -628,10 +628,10 @@ func calculatePercentile(values []time.Duration, percentile float64) time.Durati
 	if len(values) == 0 {
 		return 0
 	}
-	
+
 	sorted := make([]time.Duration, len(values))
 	copy(sorted, values)
-	
+
 	// Simple sort (in real implementation, use more efficient sorting)
 	for i := 0; i < len(sorted); i++ {
 		for j := i + 1; j < len(sorted); j++ {
@@ -640,12 +640,12 @@ func calculatePercentile(values []time.Duration, percentile float64) time.Durati
 			}
 		}
 	}
-	
+
 	index := int(float64(len(sorted)) * percentile)
 	if index >= len(sorted) {
 		index = len(sorted) - 1
 	}
-	
+
 	return sorted[index]
 }
 
@@ -657,23 +657,23 @@ func calculateStdDev(values []time.Duration, mean time.Duration) time.Duration {
 	if len(values) <= 1 {
 		return 0
 	}
-	
+
 	var sumSquaredDiff float64
 	for _, value := range values {
-		diff := float64(value-mean)
+		diff := float64(value - mean)
 		sumSquaredDiff += diff * diff
 	}
-	
+
 	variance := sumSquaredDiff / float64(len(values)-1)
 	stdDev := math.Sqrt(variance)
-	
+
 	return time.Duration(stdDev)
 }
 
 // CachePerformanceTest represents cache performance testing
 type CachePerformanceTest struct {
-	Operations     int
-	ConcurrentOps  int
+	Operations    int
+	ConcurrentOps int
 	DataSize      int
 	Cache         interface{}
 	Results       *CachePerformanceResult
@@ -681,11 +681,11 @@ type CachePerformanceTest struct {
 
 // CachePerformanceResult represents cache performance results
 type CachePerformanceResult struct {
-	ReadThroughput   float64
-	WriteThroughput  float64
+	ReadThroughput  float64
+	WriteThroughput float64
 	HitRate         float64
 	MissRate        float64
-	AverageLatency   time.Duration
+	AverageLatency  time.Duration
 }
 
 // Execute runs cache performance test
@@ -694,8 +694,8 @@ func (cpt *CachePerformanceTest) Execute() *CachePerformanceResult {
 	return &CachePerformanceResult{
 		ReadThroughput:  5000.0,
 		WriteThroughput: 2000.0,
-		HitRate:        0.80,
-		MissRate:       0.20,
+		HitRate:         0.80,
+		MissRate:        0.20,
 		AverageLatency:  5 * time.Millisecond,
 	}
 }
@@ -710,8 +710,8 @@ func setupTestWorkers(t *testing.T, count int) []*workerpkg.WorkerService {
 	var workers []*workerpkg.WorkerService
 	for i := 0; i < count; i++ {
 		config := types.WorkerConfig{
-			ID:             fmt.Sprintf("perf-worker-%d", i),
-			CoordinatorURL: "localhost:8080",
+			ID:                  fmt.Sprintf("perf-worker-%d", i),
+			CoordinatorURL:      "localhost:8080",
 			MaxConcurrentBuilds: 2,
 		}
 		worker := workerpkg.NewWorkerService(fmt.Sprintf("perf-worker-%d", i), "localhost:8080", config)

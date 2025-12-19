@@ -136,7 +136,7 @@ func LoadCacheConfig(configPath string) (*types.CacheConfig, error) {
 		S3Bucket:      "",
 		S3Region:      "us-west-2",
 		MaxCacheSize:  1024 * 1024 * 1024, // 1GB
-		TTL:           3600,               // 1 hour
+		TTL:           time.Hour,          // 1 hour
 	}
 
 	// Load from file if exists

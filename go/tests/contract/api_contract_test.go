@@ -25,8 +25,8 @@ type APIContractTest struct {
 
 // ContractTestResult represents the result of a contract test
 type ContractTestResult struct {
-	Passed  bool
-	Errors  []string
+	Passed   bool
+	Errors   []string
 	Warnings []string
 }
 
@@ -59,7 +59,7 @@ func TestAPIContract(t *testing.T) {
 	t.Parallel()
 
 	coordinator := coordinatorpkg.NewBuildCoordinator(10)
-	
+
 	// Define expected API contracts
 	expectedContracts := []APIContractTest{
 		{
@@ -105,7 +105,7 @@ func testAPIEndpoint(t *testing.T, coordinator *coordinatorpkg.BuildCoordinator,
 
 	req := httptest.NewRequest(contract.Method, contract.Path, &body)
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// Add custom headers
 	for key, value := range contract.Headers {
 		req.Header.Set(key, value)
@@ -135,17 +135,17 @@ func testAPIEndpoint(t *testing.T, coordinator *coordinatorpkg.BuildCoordinator,
 func testSubmitBuildContract(t *testing.T, coordinator *coordinatorpkg.BuildCoordinator, rr *httptest.ResponseRecorder, req *http.Request) {
 	// Create a sample build request
 	buildReq := types.BuildRequest{
-		ProjectPath:   "/tmp/test-project",
-		TaskName:      "test-build",
-		CacheEnabled:  true,
-		BuildOptions:  map[string]string{},
-		Timestamp:     time.Now(),
-		RequestID:     "test-request-1",
+		ProjectPath:  "/tmp/test-project",
+		TaskName:     "test-build",
+		CacheEnabled: true,
+		BuildOptions: map[string]string{},
+		Timestamp:    time.Now(),
+		RequestID:    "test-request-1",
 	}
 
 	// Simulate coordinator behavior
 	buildID, err := coordinator.SubmitBuild(buildReq)
-	
+
 	if err != nil {
 		// Simulate error response
 		rr.WriteHeader(http.StatusBadRequest)
@@ -168,7 +168,7 @@ func testGetBuildsContract(t *testing.T, coordinator *coordinatorpkg.BuildCoordi
 	// Simulate response with build list
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
-	
+
 	response := map[string]interface{}{
 		"builds": []interface{}{
 			map[string]string{
@@ -186,7 +186,7 @@ func testGetWorkersContract(t *testing.T, coordinator *coordinatorpkg.BuildCoord
 	// Simulate response with worker list
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
-	
+
 	response := map[string]interface{}{
 		"workers": []interface{}{
 			map[string]interface{}{
@@ -205,7 +205,7 @@ func testHealthCheckContract(t *testing.T, coordinator *coordinatorpkg.BuildCoor
 	// Simulate health check response
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
-	
+
 	response := map[string]interface{}{
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
@@ -225,7 +225,7 @@ func TestAPIVersioning(t *testing.T) {
 
 	// Test current version
 	currentVersion := "/api/v1"
-	
+
 	// Test versioned endpoints
 	versionTests := []struct {
 		version string
@@ -237,17 +237,17 @@ func TestAPIVersioning(t *testing.T) {
 		{"/api/v1", "/health", true},
 		{"/api/v2", "/builds", false}, // Future version
 		{"/api/v0", "/builds", false}, // Deprecated version
-		{"/api", "/builds", false},     // No version
+		{"/api", "/builds", false},    // No version
 	}
 
 	for _, test := range versionTests {
 		t.Run(fmt.Sprintf("version_%s", test.version), func(t *testing.T) {
 			isValid := test.valid
-			
+
 			if !isValid && test.version == currentVersion {
 				t.Errorf("Current version %s should be valid", test.version)
 			}
-			
+
 			if isValid && test.version != currentVersion {
 				t.Logf("Version %s is supported for backward compatibility", test.version)
 			}
@@ -269,9 +269,9 @@ func TestAPISecurityRequirements(t *testing.T) {
 				// Test that API accepts authentication headers
 				headers := map[string]string{
 					"Authorization": "Bearer test-token",
-					"X-API-Key":    "test-api-key",
+					"X-API-Key":     "test-api-key",
 				}
-				
+
 				if len(headers) == 0 {
 					t.Error("Authentication headers should be supported")
 				}
@@ -286,7 +286,7 @@ func TestAPISecurityRequirements(t *testing.T) {
 					"Access-Control-Allow-Methods",
 					"Access-Control-Allow-Headers",
 				}
-				
+
 				for _, header := range corsHeaders {
 					if header == "" {
 						t.Errorf("CORS header %s should be supported", header)
@@ -301,9 +301,9 @@ func TestAPISecurityRequirements(t *testing.T) {
 				rateLimitHeaders := map[string]string{
 					"X-RateLimit-Limit":     "1000",
 					"X-RateLimit-Remaining": "999",
-					"X-RateLimit-Reset":   "3600",
+					"X-RateLimit-Reset":     "3600",
 				}
-				
+
 				if len(rateLimitHeaders) == 0 {
 					t.Error("Rate limiting headers should be supported")
 				}
@@ -317,7 +317,7 @@ func TestAPISecurityRequirements(t *testing.T) {
 					"application/json",
 					"application/x-www-form-urlencoded",
 				}
-				
+
 				if len(validTypes) == 0 {
 					t.Error("Valid content types should be supported")
 				}

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-	
-	"distributed-gradle-building/types"
-	"distributed-gradle-building/coordinatorpkg"
+
 	"distributed-gradle-building/cachepkg"
+	"distributed-gradle-building/coordinatorpkg"
+	"distributed-gradle-building/types"
 )
 
 // Test authentication and authorization
@@ -30,7 +30,7 @@ func TestAuthenticationAndAuthorization(t *testing.T) {
 		{"ValidToken", "Bearer valid-jwt-token", http.StatusOK, true},
 		{"MalformedHeader", "Invalid", http.StatusUnauthorized, false},
 	}
-	
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Create test server with auth middleware
@@ -42,19 +42,19 @@ func TestAuthenticationAndAuthorization(t *testing.T) {
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)
 					return
 				}
-				
+
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(map[string]string{"status": "authenticated"})
 			})
-			
+
 			req, _ := http.NewRequest("GET", "/api/secure", nil)
 			if test.authHeader != "" {
 				req.Header.Set("Authorization", test.authHeader)
 			}
-			
+
 			rr := httptest.NewRecorder()
 			mux.ServeHTTP(rr, req)
-			
+
 			if rr.Code != test.expectedStatus {
 				t.Errorf("Expected status %d, got %d", test.expectedStatus, rr.Code)
 			}
@@ -65,7 +65,7 @@ func TestAuthenticationAndAuthorization(t *testing.T) {
 // Test input validation and sanitization
 func TestInputValidationAndSanitization(t *testing.T) {
 	coord := coordinatorpkg.NewBuildCoordinator(10)
-	
+
 	testCases := []struct {
 		name        string
 		request     types.BuildRequest
@@ -74,8 +74,8 @@ func TestInputValidationAndSanitization(t *testing.T) {
 		{
 			name: "ValidRequest",
 			request: types.BuildRequest{
-				ProjectPath: "/tmp/valid-project",
-				TaskName:    "build",
+				ProjectPath:  "/tmp/valid-project",
+				TaskName:     "build",
 				CacheEnabled: true,
 				BuildOptions: map[string]string{"clean": "true"},
 			},
@@ -84,8 +84,8 @@ func TestInputValidationAndSanitization(t *testing.T) {
 		{
 			name: "EmptyProjectPath",
 			request: types.BuildRequest{
-				ProjectPath: "",
-				TaskName:    "build",
+				ProjectPath:  "",
+				TaskName:     "build",
 				CacheEnabled: true,
 			},
 			expectError: true,
@@ -93,8 +93,8 @@ func TestInputValidationAndSanitization(t *testing.T) {
 		{
 			name: "PathTraversal",
 			request: types.BuildRequest{
-				ProjectPath: "../../../etc/passwd",
-				TaskName:    "build",
+				ProjectPath:  "../../../etc/passwd",
+				TaskName:     "build",
 				CacheEnabled: true,
 			},
 			expectError: true,
@@ -102,8 +102,8 @@ func TestInputValidationAndSanitization(t *testing.T) {
 		{
 			name: "XSSInTaskName",
 			request: types.BuildRequest{
-				ProjectPath: "/tmp/project",
-				TaskName:    "<script>alert('xss')</script>",
+				ProjectPath:  "/tmp/project",
+				TaskName:     "<script>alert('xss')</script>",
 				CacheEnabled: true,
 			},
 			expectError: true,
@@ -120,15 +120,15 @@ func TestInputValidationAndSanitization(t *testing.T) {
 			expectError: true,
 		},
 	}
-	
-		for _, tc := range testCases {
+
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := coord.SubmitBuild(tc.request)
-			
+
 			if tc.expectError && err == nil {
 				t.Logf("Note: No error for invalid input: %s (implementation may accept)", tc.name)
 			}
-			
+
 			if !tc.expectError && err != nil {
 				t.Errorf("Did not expect error: %v", err)
 			}
@@ -142,7 +142,7 @@ func TestRateLimiting(t *testing.T) {
 	limiter := make(chan struct{}, 5) // 5 requests per second
 	ticker := time.NewTicker(time.Second / 5)
 	defer ticker.Stop()
-	
+
 	// Fill rate limiter
 	for i := 0; i < 5; i++ {
 		select {
@@ -151,7 +151,7 @@ func TestRateLimiting(t *testing.T) {
 			t.Error("Rate limiter should accept initial requests")
 		}
 	}
-	
+
 	// Next request should be rate limited
 	select {
 	case limiter <- struct{}{}:
@@ -159,7 +159,7 @@ func TestRateLimiting(t *testing.T) {
 	default:
 		// Expected - rate limited
 	}
-	
+
 	// Wait for token
 	select {
 	case <-ticker.C:
@@ -183,15 +183,15 @@ func TestCORSConfiguration(t *testing.T) {
 		w.Header().Set("Access-Control-Allow-Origin", "https://trusted-domain.com")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	testCases := []struct {
 		name           string
 		origin         string
@@ -202,15 +202,15 @@ func TestCORSConfiguration(t *testing.T) {
 		{"UntrustedOrigin", "https://malicious-site.com", "GET", ""},
 		{"PreflightRequest", "https://trusted-domain.com", "OPTIONS", "https://trusted-domain.com"},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			req, _ := http.NewRequest(tc.method, "/api/test", nil)
 			req.Header.Set("Origin", tc.origin)
-			
+
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
-			
+
 			origin := rr.Header().Get("Access-Control-Allow-Origin")
 			if tc.expectedOrigin == "" && origin != "" {
 				t.Logf("Expected no origin header, got %s (may vary by implementation)", origin)
@@ -224,21 +224,21 @@ func TestCORSConfiguration(t *testing.T) {
 // Test request size limits
 func TestRequestSizeLimits(t *testing.T) {
 	maxSize := int64(1024 * 1024) // 1MB
-	
+
 	// Create handler with size limit
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxSize)
-		
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fmt.Sprintf("Received %d bytes", len(body))))
 	})
-	
+
 	testCases := []struct {
 		name           string
 		bodySize       int64
@@ -249,20 +249,20 @@ func TestRequestSizeLimits(t *testing.T) {
 		{"LargeRequest", 2 * 1024 * 1024, http.StatusRequestEntityTooLarge},
 		{"HugeRequest", 10 * 1024 * 1024, http.StatusRequestEntityTooLarge},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			body := make([]byte, tc.bodySize)
 			for i := range body {
 				body[i] = byte(i % 256)
 			}
-			
+
 			req, _ := http.NewRequest("POST", "/api/test", bytes.NewReader(body))
 			req.ContentLength = tc.bodySize
-			
+
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
-			
+
 			if rr.Code != tc.expectedStatus {
 				t.Errorf("Expected status %d, got %d", tc.expectedStatus, rr.Code)
 			}
@@ -279,31 +279,31 @@ func TestDataEncryptionAtRest(t *testing.T) {
 		TTL:             time.Hour,
 		CleanupInterval: time.Minute,
 	}
-	
+
 	cache := cachepkg.NewCacheServer(config)
-	
+
 	// Store sensitive data
 	sensitiveData := []byte("This is sensitive information that should be encrypted")
-	
+
 	err := cache.Put("sensitive-key", sensitiveData, map[string]string{
-		"type": "sensitive",
+		"type":  "sensitive",
 		"level": "high",
 	})
 	if err != nil {
 		t.Fatalf("Failed to store encrypted data: %v", err)
 	}
-	
+
 	// Retrieve data
 	entry, err := cache.Get("sensitive-key")
 	if err != nil {
 		t.Fatalf("Failed to retrieve encrypted data: %v", err)
 	}
-	
+
 	// Data should be decrypted and match original
 	if string(entry.Data) != string(sensitiveData) {
 		t.Error("Decrypted data does not match original")
 	}
-	
+
 	// In a real test, we would check that the raw file on disk is encrypted
 	// For this test, we just verify the encryption/decryption cycle works
 }
@@ -324,12 +324,12 @@ func TestSecurePasswordHandling(t *testing.T) {
 		{"CommonPassword", "password123", false},
 		{"WeakPassword", "123456", false},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			valid := validatePassword(tc.password)
 			if valid != tc.valid {
-				t.Errorf("Password validation for '%s': expected %v, got %v", 
+				t.Errorf("Password validation for '%s': expected %v, got %v",
 					tc.password, tc.valid, valid)
 			}
 		})
@@ -345,7 +345,7 @@ func TestSecureSessionManagement(t *testing.T) {
 		ExpiresAt    time.Time
 		LastAccessed time.Time
 	}
-	
+
 	// Helper function for cleaning expired sessions
 	cleanExpiredSessions := func(sessions map[string]*Session) {
 		now := time.Now()
@@ -355,9 +355,9 @@ func TestSecureSessionManagement(t *testing.T) {
 			}
 		}
 	}
-	
+
 	sessions := make(map[string]*Session)
-	
+
 	// Create secure session
 	sessionID := generateSecureSessionID()
 	session := &Session{
@@ -367,28 +367,28 @@ func TestSecureSessionManagement(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 		LastAccessed: time.Now(),
 	}
-	
+
 	sessions[sessionID] = session
-	
+
 	// Test valid session
 	if _, exists := sessions[sessionID]; !exists {
 		t.Error("Valid session should exist")
 	}
-	
+
 	// Test session expiration
 	session.ExpiresAt = time.Now().Add(-time.Hour) // Expired
-	
+
 	// In real implementation, expired sessions would be checked before retrieval
 	// For test, we just simulate the cleanup process
 	cleanExpiredSessions(sessions)
-	
+
 	if _, exists := sessions[sessionID]; exists {
 		t.Log("Note: Session cleanup logic would be implemented in real system")
 	}
-	
+
 	// Test session cleanup
 	cleanExpiredSessions(sessions)
-	
+
 	for id, s := range sessions {
 		if time.Since(s.ExpiresAt) > 0 {
 			t.Errorf("Expired session %s still exists", id)
@@ -405,22 +405,22 @@ func TestSecurityHeaders(t *testing.T) {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'")
-		
+
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	req, _ := http.NewRequest("GET", "/api/test", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
-	
+
 	expectedHeaders := map[string]string{
-		"X-Content-Type-Options":   "nosniff",
-		"X-Frame-Options":          "DENY",
-		"X-XSS-Protection":         "1; mode=block",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Frame-Options":           "DENY",
+		"X-XSS-Protection":          "1; mode=block",
 		"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 		"Content-Security-Policy":   "default-src 'self'",
 	}
-	
+
 	for header, expectedValue := range expectedHeaders {
 		actualValue := rr.Header().Get(header)
 		if actualValue != expectedValue {
@@ -438,17 +438,17 @@ func TestSecureLoggingPractices(t *testing.T) {
 		"token":    "jwt-token-secret",
 		"apiKey":   "api-key-12345",
 	}
-	
+
 	// Mock logger that captures logs
 	var loggedMessages []string
 	logger := func(format string, args ...interface{}) {
 		message := fmt.Sprintf(format, args...)
 		loggedMessages = append(loggedMessages, message)
 	}
-	
+
 	// Log user data (should sanitize sensitive fields)
 	logger("User login: %+v", sensitiveData)
-	
+
 	// Check that sensitive data is not in logs
 	for _, message := range loggedMessages {
 		if strings.Contains(message, "secret123") {
@@ -468,12 +468,12 @@ func validatePassword(password string) bool {
 	if len(password) < 12 {
 		return false
 	}
-	
+
 	hasNumber := false
 	hasUpper := false
 	hasLower := false
 	hasSpecial := false
-	
+
 	for _, char := range password {
 		switch {
 		case char >= '0' && char <= '9':
@@ -486,7 +486,7 @@ func validatePassword(password string) bool {
 			hasSpecial = true
 		}
 	}
-	
+
 	return hasNumber && hasUpper && hasLower && hasSpecial && !isCommonPassword(password)
 }
 

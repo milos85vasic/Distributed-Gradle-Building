@@ -76,7 +76,7 @@ func main() {
 		fmt.Printf("✓ Build completed successfully in %v\n", finalStatus.Duration)
 		fmt.Printf("✓ Worker: %s\n", finalStatus.WorkerID)
 		fmt.Printf("✓ Cache hit rate: %.2f%%\n", finalStatus.CacheHitRate*100)
-		
+
 		if len(finalStatus.Artifacts) > 0 {
 			fmt.Println("✓ Build artifacts:")
 			for _, artifact := range finalStatus.Artifacts {

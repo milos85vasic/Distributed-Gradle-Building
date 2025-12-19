@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	
+
 	"distributed-gradle-building/types"
 )
 
@@ -55,7 +55,7 @@ func (ws *WorkerService) Ping(args *struct{}, reply *struct{}) error {
 // ExecuteBuild executes a build request
 func (ws *WorkerService) ExecuteBuild(request types.BuildRequest, response *types.BuildResponse) error {
 	log.Printf("Worker %s executing build %s for project %s", ws.ID, request.RequestID, request.ProjectPath)
-	
+
 	// Initialize response
 	*response = types.BuildResponse{
 		RequestID: request.RequestID,
@@ -63,29 +63,29 @@ func (ws *WorkerService) ExecuteBuild(request types.BuildRequest, response *type
 		Timestamp: time.Now(),
 		Success:   false,
 	}
-	
+
 	// Create build directory
 	buildDir := filepath.Join(ws.BuildDir, request.RequestID)
 	if err := os.MkdirAll(buildDir, 0755); err != nil {
 		response.ErrorMessage = fmt.Sprintf("Failed to create build directory: %v", err)
 		return nil
 	}
-	
+
 	// Execute build
 	startTime := time.Now()
 	err := ws.runGradleBuild(request, response)
 	response.BuildDuration = time.Since(startTime)
-	
+
 	if err != nil {
 		response.ErrorMessage = fmt.Sprintf("Build failed: %v", err)
 	} else {
 		response.Success = true
 		response.Artifacts = ws.collectArtifacts(buildDir)
 	}
-	
+
 	// Clean up build directory
 	os.RemoveAll(buildDir)
-	
+
 	log.Printf("Worker %s completed build %s in %v", ws.ID, request.RequestID, response.BuildDuration)
 	return nil
 }
@@ -94,17 +94,17 @@ func (ws *WorkerService) ExecuteBuild(request types.BuildRequest, response *type
 func (ws *WorkerService) GetStatus(args *struct{}, status *WorkerStatus) error {
 	ws.Mutex.RLock()
 	defer ws.Mutex.RUnlock()
-	
+
 	*status = WorkerStatus{
-		ID:            ws.ID,
-		ActiveBuilds:  len(ws.ActiveBuilds),
-		QueueLength:   len(ws.BuildQueue),
-		LastPing:      ws.LastPing,
-		BuildDir:      ws.BuildDir,
-		IsHealthy:     time.Since(ws.LastPing) < 5*time.Minute,
-		WorkerType:    ws.Config.WorkerType,
+		ID:           ws.ID,
+		ActiveBuilds: len(ws.ActiveBuilds),
+		QueueLength:  len(ws.BuildQueue),
+		LastPing:     ws.LastPing,
+		BuildDir:     ws.BuildDir,
+		IsHealthy:    time.Since(ws.LastPing) < 5*time.Minute,
+		WorkerType:   ws.Config.WorkerType,
 	}
-	
+
 	return nil
 }
 
@@ -125,9 +125,9 @@ func (ws *WorkerService) StartServer() error {
 	if err != nil {
 		return fmt.Errorf("failed to start RPC listener: %v", err)
 	}
-	
+
 	ws.RegisterRPCMethods()
-	
+
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -137,7 +137,7 @@ func (ws *WorkerService) StartServer() error {
 			go rpc.ServeConn(conn)
 		}
 	}()
-	
+
 	log.Printf("Worker %s RPC server listening on port %d", ws.ID, ws.Config.RPCPort)
 	return nil
 }
@@ -146,19 +146,19 @@ func (ws *WorkerService) StartServer() error {
 func (ws *WorkerService) runGradleBuild(request types.BuildRequest, response *types.BuildResponse) error {
 	// Prepare Gradle command
 	args := []string{request.TaskName}
-	
+
 	// Add build options
 	for key, value := range request.BuildOptions {
 		args = append(args, fmt.Sprintf("--%s=%s", key, value))
 	}
-	
+
 	// Create command
 	cmd := exec.Command("gradle", args...)
 	cmd.Dir = request.ProjectPath
-	
+
 	// Capture output
 	output, err := cmd.CombinedOutput()
-	
+
 	// Update response metrics
 	response.Metrics = types.BuildMetrics{
 		BuildSteps: []types.BuildStep{
@@ -169,37 +169,37 @@ func (ws *WorkerService) runGradleBuild(request types.BuildRequest, response *ty
 			},
 		},
 		TestResults: types.TestResults{
-			TotalTests: 0,
+			TotalTests:  0,
 			PassedTests: 0,
 			FailedTests: 0,
 		},
 	}
-	
+
 	if err != nil {
 		response.ErrorMessage = string(output)
 		return err
 	}
-	
+
 	return nil
 }
 
 // collectArtifacts collects build artifacts from the build directory
 func (ws *WorkerService) collectArtifacts(buildDir string) []string {
 	var artifacts []string
-	
+
 	filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
-		
+
 		if !info.IsDir() {
 			relPath, _ := filepath.Rel(buildDir, path)
 			artifacts = append(artifacts, relPath)
 		}
-		
+
 		return nil
 	})
-	
+
 	return artifacts
 }
 

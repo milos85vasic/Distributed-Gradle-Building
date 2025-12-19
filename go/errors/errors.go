@@ -10,33 +10,33 @@ type ErrorCode string
 
 const (
 	// Worker errors
-	ErrCodeWorkerNotFound     ErrorCode = "WORKER_NOT_FOUND"
-	ErrCodeWorkerUnavailable   ErrorCode = "WORKER_UNAVAILABLE"
-	ErrCodeWorkerTimeout      ErrorCode = "WORKER_TIMEOUT"
-	ErrCodeWorkerCapacity     ErrorCode = "WORKER_CAPACITY_EXCEEDED"
-	
+	ErrCodeWorkerNotFound    ErrorCode = "WORKER_NOT_FOUND"
+	ErrCodeWorkerUnavailable ErrorCode = "WORKER_UNAVAILABLE"
+	ErrCodeWorkerTimeout     ErrorCode = "WORKER_TIMEOUT"
+	ErrCodeWorkerCapacity    ErrorCode = "WORKER_CAPACITY_EXCEEDED"
+
 	// Build errors
-	ErrCodeBuildNotFound      ErrorCode = "BUILD_NOT_FOUND"
-	ErrCodeBuildFailed        ErrorCode = "BUILD_FAILED"
-	ErrCodeBuildTimeout       ErrorCode = "BUILD_TIMEOUT"
-	ErrCodeBuildCancelled     ErrorCode = "BUILD_CANCELLED"
-	
+	ErrCodeBuildNotFound  ErrorCode = "BUILD_NOT_FOUND"
+	ErrCodeBuildFailed    ErrorCode = "BUILD_FAILED"
+	ErrCodeBuildTimeout   ErrorCode = "BUILD_TIMEOUT"
+	ErrCodeBuildCancelled ErrorCode = "BUILD_CANCELLED"
+
 	// Cache errors
-	ErrCodeCacheMiss         ErrorCode = "CACHE_MISS"
-	ErrCodeCacheError        ErrorCode = "CACHE_ERROR"
-	ErrCodeStorageError      ErrorCode = "STORAGE_ERROR"
-	
+	ErrCodeCacheMiss    ErrorCode = "CACHE_MISS"
+	ErrCodeCacheError   ErrorCode = "CACHE_ERROR"
+	ErrCodeStorageError ErrorCode = "STORAGE_ERROR"
+
 	// Configuration errors
-	ErrCodeInvalidConfig     ErrorCode = "INVALID_CONFIG"
-	ErrCodeMissingConfig     ErrorCode = "MISSING_CONFIG"
-	ErrCodeConfigValidation  ErrorCode = "CONFIG_VALIDATION"
-	
+	ErrCodeInvalidConfig    ErrorCode = "INVALID_CONFIG"
+	ErrCodeMissingConfig    ErrorCode = "MISSING_CONFIG"
+	ErrCodeConfigValidation ErrorCode = "CONFIG_VALIDATION"
+
 	// Network/HTTP errors
-	ErrCodeBadRequest       ErrorCode = "BAD_REQUEST"
-	ErrCodeUnauthorized     ErrorCode = "UNAUTHORIZED"
-	ErrCodeForbidden        ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound         ErrorCode = "NOT_FOUND"
-	ErrCodeInternalError    ErrorCode = "INTERNAL_ERROR"
+	ErrCodeBadRequest         ErrorCode = "BAD_REQUEST"
+	ErrCodeUnauthorized       ErrorCode = "UNAUTHORIZED"
+	ErrCodeForbidden          ErrorCode = "FORBIDDEN"
+	ErrCodeNotFound           ErrorCode = "NOT_FOUND"
+	ErrCodeInternalError      ErrorCode = "INTERNAL_ERROR"
 	ErrCodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 )
 

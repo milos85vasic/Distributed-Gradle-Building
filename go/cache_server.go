@@ -74,19 +74,20 @@ var (
 
 // CacheConfig contains cache server configuration
 type CacheConfig struct {
-	Host           string        `json:"host"`
-	Port           int           `json:"port"`
-	StorageType    string        `json:"storage_type"`
-	StorageDir     string        `json:"storage_dir"`
-	RedisAddr      string        `json:"redis_addr"`
-	RedisPassword  string        `json:"redis_password"`
-	S3Bucket       string        `json:"s3_bucket"`
-	S3Region       string        `json:"s3_region"`
-	MaxCacheSize   int64         `json:"max_cache_size"`
-	TTL            time.Duration `json:"ttl_seconds"`
-	Compression    bool          `json:"compression"`
-	Authentication bool          `json:"authentication"`
-	AuthToken      string        `json:"auth_token"`
+	Host            string        `json:"host"`
+	Port            int           `json:"port"`
+	StorageType     string        `json:"storage_type"`
+	StorageDir      string        `json:"storage_dir"`
+	RedisAddr       string        `json:"redis_addr"`
+	RedisPassword   string        `json:"redis_password"`
+	S3Bucket        string        `json:"s3_bucket"`
+	S3Region        string        `json:"s3_region"`
+	MaxCacheSize    int64         `json:"max_cache_size"`
+	TTL             time.Duration `json:"ttl"`
+	Compression     bool          `json:"compression"`
+	Authentication  bool          `json:"authentication"`
+	AuthToken       string        `json:"auth_token"`
+	CleanupInterval time.Duration `json:"cleanup_interval"`
 }
 
 // CacheEntry represents a cached build artifact
@@ -124,7 +125,7 @@ type CacheRequest struct {
 	Key      string                 `json:"key"`
 	Data     []byte                 `json:"data"`
 	Hash     string                 `json:"hash"`
-	TTL      int                    `json:"ttl"`
+	TTL      time.Duration          `json:"ttl"`
 	Metadata map[string]interface{} `json:"metadata"`
 }
 
@@ -266,7 +267,7 @@ func (rs *RedisStorage) Put(key string, entry *CacheEntry) error {
 }
 
 // Set stores data in Redis (legacy method)
-func (rs *RedisStorage) Set(key string, data []byte, ttl int) error {
+func (rs *RedisStorage) Set(key string, data []byte, ttl time.Duration) error {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
@@ -360,7 +361,7 @@ func (s3 *S3Storage) Put(key string, entry *CacheEntry) error {
 }
 
 // Set stores data in S3 (legacy method)
-func (s3 *S3Storage) Set(key string, data []byte, ttl int) error {
+func (s3 *S3Storage) Set(key string, data []byte, ttl time.Duration) error {
 	s3.mutex.Lock()
 	defer s3.mutex.Unlock()
 
@@ -883,14 +884,15 @@ func loadCacheConfig(filename string) (*CacheConfig, error) {
 		// Return default config if file doesn't exist
 		if os.IsNotExist(err) {
 			return &CacheConfig{
-				Host:           "",
-				Port:           8083,
-				StorageType:    "filesystem",
-				StorageDir:     "/tmp/gradle-cache-server",
-				MaxCacheSize:   10 * 1024 * 1024 * 1024, // 10GB
-				TTL:            24 * time.Hour,          // 24 hours
-				Compression:    true,
-				Authentication: false,
+				Host:            "",
+				Port:            8083,
+				StorageType:     "filesystem",
+				StorageDir:      "/tmp/gradle-cache-server",
+				MaxCacheSize:    10 * 1024 * 1024 * 1024, // 10GB
+				TTL:             24 * time.Hour,          // 24 hours
+				Compression:     true,
+				Authentication:  false,
+				CleanupInterval: 1 * time.Hour,
 			}, nil
 		}
 		return nil, err

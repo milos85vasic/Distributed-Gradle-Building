@@ -2,13 +2,25 @@
 
 ## 🔧 Integrating Distributed Builds with CI/CD Pipelines
 
-### Overview
+### Implementation Choices for CI/CD
 
-The Distributed Gradle Build System integrates seamlessly with popular CI/CD platforms to accelerate build times in development pipelines.
+#### **Bash Implementation**
+- Simple SSH-based integration
+- Works with existing build agents
+- Quick setup and deployment
+- Suitable for small to medium teams
+
+#### **Go Implementation** 
+- RESTful API integration
+- Advanced monitoring and metrics
+- Scalable worker pool management
+- Ideal for enterprise CI/CD
+
+---
 
 ## 🚀 Jenkins Integration
 
-### Jenkinsfile Configuration
+### Jenkinsfile Configuration (Bash Implementation)
 
 ```groovy
 pipeline {
@@ -118,7 +130,230 @@ pipeline {
 }
 ```
 
-### Jenkins Shared Library
+## 🏗️ Go API Integration (Enterprise)
+
+### RESTful API Integration
+
+The Go implementation provides full RESTful APIs for seamless CI/CD integration.
+
+### Jenkins with Go API
+```groovy
+pipeline {
+    agent any
+    
+    environment {
+        BUILD_API_URL = 'http://build-coordinator.company.com:8080'
+        METRICS_API_URL = 'http://build-coordinator.company.com:8082'
+        PROJECT_DIR = "${WORKSPACE}"
+    }
+    
+    stages {
+        stage('Submit Build') {
+            steps {
+                script {
+                    // Submit build via REST API
+                    def response = sh(
+                        script: """
+                            curl -X POST ${env.BUILD_API_URL}/api/build \
+                                -H 'Content-Type: application/json' \
+                                -d '{"project_path": "${env.PROJECT_DIR}", "task_name": "assemble", "cache_enabled": true}'
+                        """,
+                        returnStdout: true
+                    )
+                    
+                    def buildData = readJSON text: response
+                    def buildId = buildData.build_id
+                    
+                    echo "Build submitted with ID: ${buildId}"
+                    env.BUILD_ID = buildId
+                }
+            }
+        }
+        
+        stage('Monitor Build') {
+            steps {
+                script {
+                    // Poll build status
+                    timeout(time: 30, unit: 'MINUTES') {
+                        while (true) {
+                            def statusResponse = sh(
+                                script: "curl ${env.BUILD_API_URL}/api/builds/${env.BUILD_ID}",
+                                returnStdout: true
+                            )
+                            
+                            def status = readJSON text: statusResponse
+                            
+                            if (status.success) {
+                                echo "Build completed successfully!"
+                                break
+                            } else if (status.error_message) {
+                                error "Build failed: ${status.error_message}"
+                            } else {
+                                echo "Build in progress..."
+                                sleep 30
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Collect Metrics') {
+            steps {
+                script {
+                    // Get build metrics
+                    def metricsResponse = sh(
+                        script: "curl ${env.METRICS_API_URL}/api/metrics",
+                        returnStdout: true
+                    )
+                    
+                    def metrics = readJSON text: metricsResponse
+                    
+                    echo "Build Duration: ${metrics.build_duration_seconds}s"
+                    echo "Workers Used: ${metrics.workers.size()}"
+                    echo "Cache Hit Rate: ${metrics.cache_hit_rate}%"
+                }
+            }
+        }
+    }
+}
+```
+
+### GitLab CI with Go API
+```yaml
+variables:
+  BUILD_API_URL: "http://build-coordinator.company.com:8080"
+  METRICS_API_URL: "http://build-coordinator.company.com:8082"
+
+stages:
+  - setup
+  - build
+  - metrics
+
+submit_build:
+  stage: build
+  script:
+    - |
+      RESPONSE=$(curl -X POST $BUILD_API_URL/api/build \
+        -H 'Content-Type: application/json' \
+        -d '{"project_path": "$CI_PROJECT_DIR", "task_name": "assemble", "cache_enabled": true}')
+      BUILD_ID=$(echo $RESPONSE | jq -r '.build_id')
+      echo "BUILD_ID=$BUILD_ID" >> build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  environment:
+    name: distributed-build/$CI_COMMIT_REF_SLUG
+    url: $BUILD_API_URL/api/builds/$BUILD_ID
+
+monitor_build:
+  stage: metrics
+  needs: [submit_build]
+  dependencies:
+    - submit_build
+  script:
+    - |
+      timeout 1800 bash -c ""
+        while true; do
+          STATUS=$(curl -s $BUILD_API_URL/api/builds/$BUILD_ID)
+          SUCCESS=$(echo $STATUS | jq -r '.success')
+          
+          if [ '$SUCCESS' = 'true' ]; then
+            echo 'Build completed successfully!'
+            break
+          elif [ '$SUCCESS' = 'false' ]; then
+            ERROR=$(echo $STATUS | jq -r '.error_message')
+            echo "Build failed: $ERROR"
+            exit 1
+          else
+            echo 'Build in progress...'
+            sleep 30
+          fi
+        done
+      ""
+  artifacts:
+    reports:
+      junit: build-results.xml
+    paths:
+      - build/distributed/**/*
+  coverage: '/Total coverage: (\d+\.\d+)%/'
+```
+
+### GitHub Actions with Go API
+```yaml
+name: Distributed Gradle Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  distributed-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Submit Build
+      id: submit-build
+      run: |
+        RESPONSE=$(curl -X POST ${{ secrets.BUILD_API_URL }}/api/build \
+          -H 'Content-Type: application/json' \
+          -d '{"project_path": "${{ github.workspace }}", "task_name": "assemble", "cache_enabled": true}')
+        
+        BUILD_ID=$(echo $RESPONSE | jq -r '.build_id')
+        echo "build-id=$BUILD_ID" >> $GITHUB_OUTPUT
+        echo "Build submitted with ID: $BUILD_ID"
+    
+    - name: Monitor Build
+      run: |
+        BUILD_ID="${{ steps.submit-build.outputs.build-id }}"
+        
+        timeout 1800 bash -c ""
+          while true; do
+            STATUS=$(curl -s ${{ secrets.BUILD_API_URL }}/api/builds/$BUILD_ID)
+            SUCCESS=$(echo $STATUS | jq -r '.success')
+            
+            if [ '$SUCCESS' = 'true' ]; then
+              echo '✅ Build completed successfully!'
+              break
+            elif [ '$SUCCESS' = 'false' ]; then
+              ERROR=$(echo $STATUS | jq -r '.error_message')
+              echo "❌ Build failed: $ERROR"
+              exit 1
+            else
+              echo '⏳ Build in progress...'
+              sleep 30
+            fi
+          done
+        ""
+    
+    - name: Collect Metrics
+      if: success()
+      run: |
+        METRICS=$(curl -s ${{ secrets.METRICS_API_URL }}/api/metrics)
+        BUILD_DURATION=$(echo $METRICS | jq -r '.build_duration_seconds')
+        WORKERS_USED=$(echo $METRICS | jq -r '.workers | length')
+        CACHE_HIT_RATE=$(echo $METRICS | jq -r '.cache_hit_rate')
+        
+        echo "📊 Build Metrics:"
+        echo "⏱️ Duration: ${BUILD_DURATION}s"
+        echo "👥 Workers: ${WORKERS_USED}"
+        echo "💾 Cache Hit Rate: ${CACHE_HIT_RATE}%"
+    
+    - name: Upload Artifacts
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: |
+          build/distributed/**/*
+          .distributed/metrics/*.json
+```
+
+**📖 For complete Go API documentation:** [API Reference](API_REFERENCE.md)
 
 ```groovy
 // vars/distributedGradle.groovy

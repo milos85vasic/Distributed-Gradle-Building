@@ -6,6 +6,7 @@ The Distributed Gradle Build System provides comprehensive monitoring capabiliti
 
 ## 🔍 Monitoring Architecture
 
+### Bash Implementation Monitoring
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Master Node   │    │   Worker 1      │    │   Worker N      │
@@ -21,6 +22,56 @@ The Distributed Gradle Build System provides comprehensive monitoring capabiliti
 │ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
+
+### Go Implementation Monitoring
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Coordinator    │    │   Worker Pool   │    │   Monitor       │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │ HTTP/RPC   │ │    │ │ Real-time   │ │    │ │ Metrics     │ │
+│ │ Metrics    │ │◄──►│ │ Performance │ │◄──►│ │ Collection  │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │ REST API   │ │    │ │ Health      │ │    │ │ Alerts      │ │
+│ │ Endpoints  │ │    │ │ Checks      │ │    │ │ Dashboard   │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+## 🏗️ Go Implementation Monitoring Features
+
+### Advanced Monitoring Capabilities
+- **Real-time Metrics**: Continuous performance tracking via REST APIs
+- **Health Monitoring**: Automated health checks for all services
+- **Performance Dashboard**: Web-based monitoring interface
+- **Alert System**: Configurable alerts for build failures
+- **Resource Tracking**: Detailed CPU, memory, and network usage
+- **Build Analytics**: Historical data and trend analysis
+
+### Go Service Endpoints
+```bash
+# Build metrics
+curl http://localhost:8080/api/metrics
+
+# Worker status
+curl http://localhost:8080/api/workers
+
+# Health status
+curl http://localhost:8080/api/health
+
+# Monitor dashboard
+curl http://localhost:8082/api/dashboard
+```
+
+### Go Monitor Service Features
+- **Prometheus Integration**: Export metrics for Grafana
+- **Real-time Updates**: WebSocket connections for live data
+- **Historical Storage**: Time-series data storage
+- **Performance Analytics**: Build performance trends
+
+**📖 For Go service details:** [monitor.go](../go/monitor.go)
 
 ## 📈 Available Metrics
 

@@ -13,7 +13,6 @@ import (
 
 	"distributed-gradle-building/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // CacheServer represents a distributed build cache server

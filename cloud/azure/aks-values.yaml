@@ -1,0 +1,130 @@
+# Azure AKS optimized values for Distributed Gradle Building
+global:
+  namespace: distributed-gradle
+  environment: production
+  registry: your-acr.azurecr.io
+  imageTag: latest
+
+# Azure-specific storage classes
+cache:
+  enabled: true
+  replicas: 2
+  image:
+    repository: distributed-gradle-cache
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8083
+  env:
+    CACHE_PORT: "8083"
+    LOG_LEVEL: "info"
+    MAX_CACHE_SIZE: "50GB"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  persistence:
+    data:
+      enabled: true
+      size: 100Gi
+      storageClass: azure-premium-ssd
+    logs:
+      enabled: true
+      size: 20Gi
+      storageClass: azure-premium-ssd
+
+coordinator:
+  enabled: true
+  replicas: 2
+  image:
+    repository: distributed-gradle-coordinator
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8080
+  env:
+    COORDINATOR_PORT: "8080"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+monitor:
+  enabled: true
+  replicas: 1
+  image:
+    repository: distributed-gradle-monitor
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8082
+  env:
+    MONITOR_PORT: "8082"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+worker:
+  enabled: true
+  replicas: 5
+  image:
+    repository: distributed-gradle-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8081
+  env:
+    WORKER_PORT: "8081"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Azure optimized monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+    alertmanagers:
+      - "alertmanager.monitoring.svc.cluster.local:9093"
+  grafana:
+    enabled: true
+
+# Azure Application Gateway Ingress
+ingress:
+  enabled: true
+  className: "azure/application-gateway"
+  annotations:
+    appgw.ingress.kubernetes.io/backend-protocol: "http"
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+    appgw.ingress.kubernetes.io/health-probe-status-codes: "200-399"
+    appgw.ingress.kubernetes.io/request-timeout: "30"
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/use-private-ip: "false"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: gradle.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gradle-tls
+      hosts:
+        - gradle.yourdomain.com

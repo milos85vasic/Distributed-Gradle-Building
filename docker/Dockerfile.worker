@@ -25,8 +25,8 @@ RUN cd worker && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o work
 # Final stage
 FROM alpine:latest
 
-# Install runtime dependencies (including Java for Gradle builds)
-RUN apk --no-cache add ca-certificates tzdata curl openjdk17-jre-headless bash
+# Install runtime dependencies (including Java and Gradle for builds)
+RUN apk --no-cache add ca-certificates tzdata curl openjdk17-jre-headless bash gradle
 
 # Create app user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

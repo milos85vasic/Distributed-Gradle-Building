@@ -297,7 +297,7 @@ func (bc *BuildCoordinator) StartRPCServer(port int) error {
 	}
 
 	bc.rpcServer = rpc.NewServer()
-	err = rpc.RegisterName("BuildCoordinator", bc)
+	err = bc.rpcServer.RegisterName("BuildCoordinator", bc)
 	if err != nil {
 		log.Printf("RPC registration failed: %v", err)
 		return err

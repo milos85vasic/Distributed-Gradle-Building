@@ -62,9 +62,11 @@ spec:
           mountPath: /app/logs
       volumes:
       - name: data
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: monitor-data-pvc
       - name: logs
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: monitor-logs-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -82,3 +84,35 @@ spec:
     port: 8084
     targetPort: 8084
   type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: monitor-data-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-monitor
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: monitor-logs-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-monitor
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: standard

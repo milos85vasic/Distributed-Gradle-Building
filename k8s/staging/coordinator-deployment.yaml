@@ -60,9 +60,11 @@ spec:
           mountPath: /app/logs
       volumes:
       - name: data
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: coordinator-data-pvc
       - name: logs
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: coordinator-logs-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -83,3 +85,35 @@ spec:
     port: 8081
     targetPort: 8081
   type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: coordinator-data-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-coordinator
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: coordinator-logs-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-coordinator
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

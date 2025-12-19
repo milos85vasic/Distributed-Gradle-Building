@@ -74,13 +74,17 @@ spec:
           mountPath: /app/cache
       volumes:
       - name: data
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: worker-data-pvc
       - name: logs
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: worker-logs-pvc
       - name: gradle-home
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: worker-gradle-pvc
       - name: cache
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: worker-cache-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -98,3 +102,67 @@ spec:
     port: 8082
     targetPort: 8082
   type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-data-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-logs-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-gradle-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-cache-pvc
+  namespace: staging
+  labels:
+    app: distributed-gradle-worker
+    environment: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard

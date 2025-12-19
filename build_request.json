@@ -1,0 +1,6 @@
+{
+  "ProjectPath": "/app/test-project",
+  "TaskName": "hello",
+  "CacheEnabled": true,
+  "BuildOptions": {}
+}

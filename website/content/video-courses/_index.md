@@ -103,6 +103,8 @@ Common issues, performance tuning, and problem resolution.
 
 **🎥 Watch Now:** [Advanced Course Video](/videos/advanced/advanced-techniques.mp4)
 
+**📖 Detailed Course Content:** [Advanced Course Scripts](/video-courses/advanced-course)
+
 **💻 Hands-on Labs:**
 - [Lab 1: Performance Tuning](/labs/performance-tuning)
 - [Lab 2: Cache Optimization](/labs/cache-optimization)
@@ -148,6 +150,8 @@ Common issues, performance tuning, and problem resolution.
 
 **🎥 Watch Now:** [Deployment Course Video](/videos/deployment/production-deployment.mp4)
 
+**📖 Detailed Course Content:** [Deployment Course Scripts](/video-courses/deployment-course)
+
 **📋 Deployment Checklists:**
 - [Pre-Deployment Checklist](/checklists/pre-deployment.md)
 - [Security Configuration](/checklists/security-config.md)
@@ -188,6 +192,8 @@ Common issues, performance tuning, and problem resolution.
 - Performance counter interpretation
 
 **🎥 Watch Now:** [Troubleshooting Course Video](/videos/troubleshooting/debugging-techniques.mp4)
+
+**📖 Detailed Course Content:** [Troubleshooting Course Scripts](/video-courses/troubleshooting-course)
 
 **🛠️ Diagnostic Tools:**
 - [Health Checker Script](/scripts/health_checker.sh)

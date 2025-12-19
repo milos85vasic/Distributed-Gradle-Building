@@ -17,7 +17,7 @@ func LoadCoordinatorConfig(configPath string) (*types.CoordinatorConfig, error) 
 		RPCPort:          8081,
 		MaxWorkers:       10,
 		QueueSize:        100,
-		HeartbeatTimeout:  30 * time.Second,
+		HeartbeatTimeout: 30 * time.Second,
 	}
 
 	// Load from file if exists
@@ -64,14 +64,14 @@ func LoadCoordinatorConfig(configPath string) (*types.CoordinatorConfig, error) 
 // LoadWorkerConfig loads worker configuration with environment variable overrides
 func LoadWorkerConfig(configPath string) (*types.WorkerConfig, error) {
 	config := &types.WorkerConfig{
-		ID:                   "worker-" + generateWorkerID(),
-		CoordinatorURL:        "http://localhost:8080",
-		HTTPPort:             9000,
-		RPCPort:              9001,
-		BuildDir:             "/tmp/builds",
-		CacheEnabled:          true,
-		MaxConcurrentBuilds:   2,
-		WorkerType:           "gradle",
+		ID:                  "worker-" + generateWorkerID(),
+		CoordinatorURL:      "http://localhost:8080",
+		HTTPPort:            9000,
+		RPCPort:             9001,
+		BuildDir:            "/tmp/builds",
+		CacheEnabled:        true,
+		MaxConcurrentBuilds: 2,
+		WorkerType:          "gradle",
 	}
 
 	// Load from file if exists
@@ -128,15 +128,15 @@ func LoadWorkerConfig(configPath string) (*types.WorkerConfig, error) {
 // LoadCacheConfig loads cache configuration with environment variable overrides
 func LoadCacheConfig(configPath string) (*types.CacheConfig, error) {
 	config := &types.CacheConfig{
-		Port:            8082,
-		StorageType:     "filesystem",
-		StorageDir:      "/tmp/cache",
-		RedisAddr:       "localhost:6379",
-		RedisPassword:   "",
-		S3Bucket:        "",
-		S3Region:        "us-west-2",
-		MaxCacheSize:    1024 * 1024 * 1024, // 1GB
-		TTL:             3600, // 1 hour
+		Port:          8082,
+		StorageType:   "filesystem",
+		StorageDir:    "/tmp/cache",
+		RedisAddr:     "localhost:6379",
+		RedisPassword: "",
+		S3Bucket:      "",
+		S3Region:      "us-west-2",
+		MaxCacheSize:  1024 * 1024 * 1024, // 1GB
+		TTL:           3600,               // 1 hour
 	}
 
 	// Load from file if exists
@@ -185,7 +185,7 @@ func LoadCacheConfig(configPath string) (*types.CacheConfig, error) {
 
 	if ttl := os.Getenv("CACHE_TTL"); ttl != "" {
 		if t, err := strconv.Atoi(ttl); err == nil {
-			config.TTL = t
+			config.TTL = time.Duration(t) * time.Second
 		}
 	}
 
@@ -195,11 +195,11 @@ func LoadCacheConfig(configPath string) (*types.CacheConfig, error) {
 // LoadMonitorConfig loads monitor configuration with environment variable overrides
 func LoadMonitorConfig(configPath string) (*types.MonitorConfig, error) {
 	config := &types.MonitorConfig{
-		Port:              8083,
-		MetricsInterval:   30 * time.Second,
-		AlertThresholds:   make(map[string]float64),
-		EnablePrometheus:  false,
-		EnableJaeger:      false,
+		Port:             8083,
+		MetricsInterval:  30 * time.Second,
+		AlertThresholds:  make(map[string]float64),
+		EnablePrometheus: false,
+		EnableJaeger:     false,
 		JaegerEndpoint:   "http://localhost:14268/api/traces",
 	}
 

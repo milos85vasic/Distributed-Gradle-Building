@@ -70,8 +70,8 @@ func TestNetworkSecurity(t *testing.T) {
 	}
 }
 
-// TestDataEncryption tests data encryption and protection
-func TestDataEncryption(t *testing.T) {
+// TestNetworkDataEncryption tests data encryption and protection in network context
+func TestNetworkDataEncryption(t *testing.T) {
 	// Create test environment
 	testDir, err := ioutil.TempDir("", "data-encryption-test")
 	if err != nil {
@@ -102,7 +102,7 @@ func TestDataEncryption(t *testing.T) {
 		{
 			name: "DataMasking",
 			testFunc: func(t *testing.T) {
-			 testDataMasking(t)
+				testDataMasking(t)
 			},
 			description: "Test sensitive data masking in logs",
 		},
@@ -181,7 +181,7 @@ func TestAPIVulnerabilityScanning(t *testing.T) {
 func testHTTPSRedirection(t *testing.T) {
 	// Setup mock service with HTTPS redirection
 	router := mux.NewRouter()
-	
+
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil {
 			// Redirect HTTP to HTTPS
@@ -192,17 +192,17 @@ func testHTTPSRedirection(t *testing.T) {
 			w.Write([]byte("Secure connection"))
 		}
 	})
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Test HTTP request
 	resp, err := http.Get(server.URL)
 	if err != nil {
 		t.Fatalf("Failed to make HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	// Should redirect (301)
 	if resp.StatusCode != http.StatusMovedPermanently {
 		t.Errorf("Expected HTTP redirect (301), got %d", resp.StatusCode)
@@ -221,7 +221,7 @@ func testTLSConfiguration(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// This would test against a real server with TLS
 	// For mock testing, we verify client configuration
 	if client.Transport.(*http.Transport).TLSClientConfig.MinVersion < tls.VersionTLS12 {
@@ -235,28 +235,28 @@ func testRateLimiting(t *testing.T) {
 	// Setup mock service with rate limiting
 	router := mux.NewRouter()
 	requestCount := 0
-	
+
 	router.HandleFunc("/api/builds", func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		
+
 		// Simple rate limiting: max 5 requests
 		if requestCount > 5 {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte(`{"error": "Rate limit exceeded"}`))
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "ok"}`))
 	}).Methods("POST")
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Test rate limiting
 	successCount := 0
 	rateLimitedCount := 0
-	
+
 	for i := 0; i < 10; i++ {
 		resp, err := http.Post(
 			server.URL+"/api/builds",
@@ -266,7 +266,7 @@ func testRateLimiting(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		
+
 		if resp.StatusCode == http.StatusOK {
 			successCount++
 		} else if resp.StatusCode == http.StatusTooManyRequests {
@@ -274,7 +274,7 @@ func testRateLimiting(t *testing.T) {
 		}
 		resp.Body.Close()
 	}
-	
+
 	if successCount <= 5 && rateLimitedCount > 0 {
 		t.Logf("✓ Rate limiting active: %d successful, %d rate limited", successCount, rateLimitedCount)
 	} else {
@@ -285,12 +285,12 @@ func testRateLimiting(t *testing.T) {
 func testIPWhitelisting(t *testing.T) {
 	// Setup mock service with IP whitelisting
 	router := mux.NewRouter()
-	
+
 	whitelistedIPs := []string{"127.0.0.1", "::1"}
-	
+
 	router.HandleFunc("/api/admin", func(w http.ResponseWriter, r *http.Request) {
 		clientIP := strings.Split(r.RemoteAddr, ":")[0]
-		
+
 		isWhitelisted := false
 		for _, ip := range whitelistedIPs {
 			if ip == clientIP {
@@ -298,27 +298,27 @@ func testIPWhitelisting(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !isWhitelisted {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte(`{"error": "IP not whitelisted"}`))
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"admin_data": "secure"}`))
 	})
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Test whitelisted IP access
 	resp, err := http.Get(server.URL + "/api/admin")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusOK {
 		t.Logf("✓ Whitelisted IP access allowed")
 	} else {
@@ -329,13 +329,13 @@ func testIPWhitelisting(t *testing.T) {
 func testPasswordHashing(t *testing.T) {
 	// Test password hashing with bcrypt
 	password := "test-password-123"
-	
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		t.Fatalf("Failed to hash password: %v", err)
 	}
-	
+
 	// Verify password
 	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
 	if err != nil {
@@ -343,7 +343,7 @@ func testPasswordHashing(t *testing.T) {
 	} else {
 		t.Logf("✓ Password hashing and verification working")
 	}
-	
+
 	// Test incorrect password
 	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte("wrong-password"))
 	if err == nil {
@@ -356,21 +356,21 @@ func testPasswordHashing(t *testing.T) {
 func testSensitiveDataEncryption(t *testing.T) {
 	// Test basic encryption/decryption
 	sensitiveData := "user-credentials-secret-key"
-	
+
 	// Simple XOR encryption for demonstration
 	key := []byte("encryption-key-123")
 	encrypted := make([]byte, len(sensitiveData))
-	
+
 	for i := 0; i < len(sensitiveData); i++ {
 		encrypted[i] = sensitiveData[i] ^ key[i%len(key)]
 	}
-	
+
 	// Decrypt
 	decrypted := make([]byte, len(encrypted))
 	for i := 0; i < len(encrypted); i++ {
 		decrypted[i] = encrypted[i] ^ key[i%len(key)]
 	}
-	
+
 	if string(decrypted) == sensitiveData {
 		t.Logf("✓ Sensitive data encryption/decryption working")
 	} else {
@@ -382,18 +382,18 @@ func testDataMasking(t *testing.T) {
 	// Test data masking for logs
 	email := "user@example.com"
 	maskedEmail := maskEmail(email)
-	
+
 	expectedMasked := "u***@e******.com"
 	if maskedEmail == expectedMasked {
 		t.Logf("✓ Email masking working: %s -> %s", email, maskedEmail)
 	} else {
 		t.Errorf("Email masking failed: expected %s, got %s", expectedMasked, maskedEmail)
 	}
-	
+
 	// Test credit card masking
 	creditCard := "1234567890123456"
 	maskedCard := maskCreditCard(creditCard)
-	
+
 	expectedCardMask := "************3456"
 	if maskedCard == expectedCardMask {
 		t.Logf("✓ Credit card masking working: %s -> %s", creditCard, maskedCard)
@@ -405,13 +405,13 @@ func testDataMasking(t *testing.T) {
 func testTokenSecurity(t *testing.T) {
 	// Test secure token generation
 	token := generateSecureToken()
-	
+
 	if len(token) >= 32 {
 		t.Logf("✓ Secure token generated: %d characters", len(token))
 	} else {
 		t.Errorf("Token too short: %d characters", len(token))
 	}
-	
+
 	// Test token contains random characters
 	token2 := generateSecureToken()
 	if token != token2 {
@@ -424,10 +424,10 @@ func testTokenSecurity(t *testing.T) {
 func testSQLInjectionPrevention(t *testing.T) {
 	// Setup mock service vulnerable to SQL injection for testing
 	router := mux.NewRouter()
-	
+
 	router.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		username := r.URL.Query().Get("username")
-		
+
 		// Check for SQL injection patterns
 		injectionPatterns := []string{
 			"'",
@@ -442,7 +442,7 @@ func testSQLInjectionPrevention(t *testing.T) {
 			"update",
 			"delete",
 		}
-		
+
 		for _, pattern := range injectionPatterns {
 			if strings.Contains(strings.ToLower(username), pattern) {
 				w.WriteHeader(http.StatusBadRequest)
@@ -450,27 +450,27 @@ func testSQLInjectionPrevention(t *testing.T) {
 				return
 			}
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"users": []}`))
 	})
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Test SQL injection attempts
 	injectionAttempts := []string{
 		"admin'; DROP TABLE users; --",
 		"' OR '1'='1",
 		"1' UNION SELECT * FROM users --",
 	}
-	
+
 	for _, attempt := range injectionAttempts {
 		resp, err := http.Get(fmt.Sprintf("%s/api/users?username=%s", server.URL, attempt))
 		if err != nil {
 			continue
 		}
-		
+
 		if resp.StatusCode == http.StatusBadRequest {
 			t.Logf("✓ SQL injection attempt blocked: %s", attempt)
 		} else {
@@ -483,10 +483,10 @@ func testSQLInjectionPrevention(t *testing.T) {
 func testXSSPrevention(t *testing.T) {
 	// Setup mock service with XSS protection
 	router := mux.NewRouter()
-	
+
 	router.HandleFunc("/api/comments", func(w http.ResponseWriter, r *http.Request) {
 		comment := r.URL.Query().Get("comment")
-		
+
 		// Check for XSS patterns
 		xssPatterns := []string{
 			"<script",
@@ -497,7 +497,7 @@ func testXSSPrevention(t *testing.T) {
 			"<object",
 			"<embed",
 		}
-		
+
 		for _, pattern := range xssPatterns {
 			if strings.Contains(strings.ToLower(comment), pattern) {
 				w.WriteHeader(http.StatusBadRequest)
@@ -505,14 +505,14 @@ func testXSSPrevention(t *testing.T) {
 				return
 			}
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "comment posted"}`))
 	})
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Test XSS attempts
 	xssAttempts := []string{
 		"<script>alert('xss')</script>",
@@ -520,13 +520,13 @@ func testXSSPrevention(t *testing.T) {
 		"<img src=x onerror=alert('xss')>",
 		"<iframe src='javascript:alert(\"xss\")'></iframe>",
 	}
-	
+
 	for _, attempt := range xssAttempts {
 		resp, err := http.Get(fmt.Sprintf("%s/api/comments?comment=%s", server.URL, attempt))
 		if err != nil {
 			continue
 		}
-		
+
 		if resp.StatusCode == http.StatusBadRequest {
 			t.Logf("✓ XSS attempt blocked: %s", attempt)
 		} else {
@@ -539,85 +539,85 @@ func testXSSPrevention(t *testing.T) {
 func testCSRFProtection(t *testing.T) {
 	// Setup mock service with CSRF protection
 	router := mux.NewRouter()
-	
+
 	// Store session tokens
 	sessionTokens := map[string]string{}
-	
+
 	router.HandleFunc("/api/csrf-token", func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.Header.Get("X-Session-ID")
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("session-%d", time.Now().UnixNano())
 		}
-		
+
 		csrfToken := generateSecureToken()
 		sessionTokens[sessionID] = csrfToken
-		
+
 		w.Header().Set("X-Session-ID", sessionID)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fmt.Sprintf(`{"csrf_token": "%s"}`, csrfToken)))
 	})
-	
+
 	router.HandleFunc("/api/transfer", func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.Header.Get("X-Session-ID")
 		csrfToken := r.Header.Get("X-CSRF-Token")
-		
+
 		storedToken, exists := sessionTokens[sessionID]
 		if !exists || storedToken != csrfToken {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte(`{"error": "CSRF token invalid"}`))
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "transfer completed"}`))
 	}).Methods("POST")
-	
+
 	server := httptest.NewServer(router)
 	defer server.Close()
-	
+
 	// Get CSRF token
 	resp, err := http.Get(server.URL + "/api/csrf-token")
 	if err != nil {
 		t.Fatalf("Failed to get CSRF token: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	var tokenResp map[string]string
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		t.Fatalf("Failed to decode CSRF token response: %v", err)
 	}
-	
+
 	sessionID := resp.Header.Get("X-Session-ID")
 	csrfToken := tokenResp["csrf_token"]
-	
+
 	// Test valid CSRF token
 	req, _ := http.NewRequest("POST", server.URL+"/api/transfer", nil)
 	req.Header.Set("X-Session-ID", sessionID)
 	req.Header.Set("X-CSRF-Token", csrfToken)
-	
+
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to make protected request: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusOK {
 		t.Logf("✓ Valid CSRF token accepted")
 	} else {
 		t.Errorf("Valid CSRF token rejected: %d", resp.StatusCode)
 	}
-	
+
 	// Test invalid CSRF token
 	req, _ = http.NewRequest("POST", server.URL+"/api/transfer", nil)
 	req.Header.Set("X-Session-ID", sessionID)
 	req.Header.Set("X-CSRF-Token", "invalid-token")
-	
+
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to make request with invalid CSRF: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusForbidden {
 		t.Logf("✓ Invalid CSRF token rejected")
 	} else {
@@ -627,7 +627,7 @@ func testCSRFProtection(t *testing.T) {
 
 func testBrokenAuthentication(t *testing.T) {
 	// Test for common authentication vulnerabilities
-	
+
 	// Test weak password rejection
 	weakPasswords := []string{
 		"password",
@@ -636,7 +636,7 @@ func testBrokenAuthentication(t *testing.T) {
 		"qwerty",
 		"password123",
 	}
-	
+
 	for _, weak := range weakPasswords {
 		if isStrongPassword(weak) {
 			t.Errorf("Weak password should be rejected: %s", weak)
@@ -644,16 +644,16 @@ func testBrokenAuthentication(t *testing.T) {
 			t.Logf("✓ Weak password rejected: %s", weak)
 		}
 	}
-	
+
 	// Test session management
 	sessionToken := generateSecureToken()
-	
+
 	if len(sessionToken) < 32 {
 		t.Error("Session token should be at least 32 characters")
 	} else {
 		t.Logf("✓ Session token length sufficient: %d characters", len(sessionToken))
 	}
-	
+
 	// Test session timeout
 	sessionCreated := time.Now().Add(-25 * time.Hour) // 25 hours ago
 	if isSessionValid(sessionCreated) {
@@ -670,15 +670,15 @@ func maskEmail(email string) string {
 	if len(parts) != 2 {
 		return email
 	}
-	
+
 	local := parts[0]
 	domain := parts[1]
-	
+
 	if len(local) > 1 {
 		maskedLocal := string(local[0]) + strings.Repeat("*", len(local)-2) + string(local[len(local)-1])
 		return maskedLocal + "@" + domain
 	}
-	
+
 	return email
 }
 
@@ -686,7 +686,7 @@ func maskCreditCard(card string) string {
 	if len(card) < 4 {
 		return strings.Repeat("*", len(card))
 	}
-	
+
 	return strings.Repeat("*", len(card)-4) + card[len(card)-4:]
 }
 
@@ -704,12 +704,12 @@ func isStrongPassword(password string) bool {
 	if len(password) < 8 {
 		return false
 	}
-	
+
 	hasUpper := false
 	hasLower := false
 	hasDigit := false
 	hasSpecial := false
-	
+
 	for _, char := range password {
 		switch {
 		case char >= 'A' && char <= 'Z':
@@ -722,7 +722,7 @@ func isStrongPassword(password string) bool {
 			hasSpecial = true
 		}
 	}
-	
+
 	return hasUpper && hasLower && hasDigit && hasSpecial
 }
 

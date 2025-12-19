@@ -1,5 +1,25 @@
 # CI/CD Integration Guide
 
+## ✅ **CI/CD Pipelines Status: ACTIVE**
+
+The project's CI/CD pipelines are now **enabled and active**:
+
+- **Test Pipeline** (`.github/workflows/test.yml`): ✅ **ENABLED**
+  - Unit, integration, security, performance, and load tests
+  - Multi-version Go testing (1.19, 1.20, 1.21)
+  - Code coverage and SonarCloud analysis
+
+- **Deploy Pipeline** (`.github/workflows/deploy.yml`): ✅ **ENABLED**
+  - Automated Docker image building and pushing
+  - Staging and production deployments
+  - Multi-environment support
+
+- **Website Pipeline** (`.github/workflows/website.yml`): ✅ **ENABLED**
+  - Hugo website building and deployment to GitHub Pages
+  - Preview deployments for pull requests
+
+---
+
 ## 🔧 Integrating Distributed Builds with CI/CD Pipelines
 
 ### Implementation Choices for CI/CD

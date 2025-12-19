@@ -7,8 +7,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // CacheServer manages distributed build cache
@@ -23,6 +27,74 @@ type CacheServer struct {
 	startTime  time.Time
 	httpServer *http.Server
 }
+
+// Prometheus metrics
+var (
+	cacheHitsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hits_total",
+			Help: "Total number of cache hits",
+		},
+		[]string{"operation"},
+	)
+	cacheMissesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_misses_total",
+			Help: "Total number of cache misses",
+		},
+		[]string{"operation"},
+	)
+	cacheRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_requests_total",
+			Help: "Total number of cache requests",
+		},
+		[]string{"operation"},
+	)
+	cacheSizeBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cache_size_bytes",
+			Help: "Current cache size in bytes",
+		},
+	)
+	cacheEntriesTotal = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cache_entries_total",
+			Help: "Total number of cache entries",
+		},
+	)
+	processResidentMemoryBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_resident_memory_bytes",
+			Help: "Resident memory size in bytes",
+		},
+	)
+	processVirtualMemoryBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_virtual_memory_bytes",
+			Help: "Virtual memory size in bytes",
+		},
+	)
+	processVirtualMemoryMaxBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_virtual_memory_max_bytes",
+			Help: "Maximum virtual memory size in bytes",
+		},
+	)
+	processCPUUserSecondsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "process_cpu_user_seconds_total",
+			Help: "Total user CPU time spent in seconds",
+		},
+	)
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "endpoint", "status"},
+	)
+)
 
 // CacheConfig contains cache server configuration
 type CacheConfig struct {
@@ -130,6 +202,20 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 
 	// Load existing cache entries
 	server.loadExistingEntries()
+
+	// Register Prometheus metrics
+	prometheus.MustRegister(
+		cacheHitsTotal,
+		cacheMissesTotal,
+		cacheRequestsTotal,
+		cacheSizeBytes,
+		cacheEntriesTotal,
+		processResidentMemoryBytes,
+		processVirtualMemoryBytes,
+		processVirtualMemoryMaxBytes,
+		processCPUUserSecondsTotal,
+		httpRequestsTotal,
+	)
 
 	return server, nil
 }
@@ -537,6 +623,8 @@ func (cs *CacheServer) Put(key string, request *CacheRequest) error {
 		return err
 	}
 
+	cacheRequestsTotal.WithLabelValues("put").Inc()
+
 	return nil
 }
 
@@ -548,6 +636,8 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 	entry, exists := cs.cache[key]
 	if !exists {
 		cs.missCount++
+		cacheMissesTotal.WithLabelValues("get").Inc()
+		cacheRequestsTotal.WithLabelValues("get").Inc()
 		return &CacheResponse{Found: false}, nil
 	}
 
@@ -556,6 +646,8 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 		delete(cs.cache, key)
 		cs.storage.Delete(key)
 		cs.missCount++
+		cacheMissesTotal.WithLabelValues("get").Inc()
+		cacheRequestsTotal.WithLabelValues("get").Inc()
 		return &CacheResponse{Found: false}, nil
 	}
 
@@ -563,6 +655,8 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 	entry.LastAccessed = time.Now()
 	entry.AccessCount++
 	cs.hitCount++
+	cacheHitsTotal.WithLabelValues("get").Inc()
+	cacheRequestsTotal.WithLabelValues("get").Inc()
 
 	// Load data
 	dataPath := filepath.Join(cs.storageDir, key+".data")
@@ -570,6 +664,8 @@ func (cs *CacheServer) Get(key string) (*CacheResponse, error) {
 	if err != nil {
 		delete(cs.cache, key)
 		cs.missCount++
+		cacheMissesTotal.WithLabelValues("get").Inc()
+		cacheRequestsTotal.WithLabelValues("get").Inc()
 		return &CacheResponse{Found: false}, err
 	}
 
@@ -661,6 +757,7 @@ func (cs *CacheServer) StartHTTPServer() error {
 	mux.HandleFunc("/stats", cs.handleStatsRequest)
 	mux.HandleFunc("/cleanup", cs.handleCleanupRequest)
 	mux.HandleFunc("/health", cs.handleHealthCheck)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	cs.httpServer = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cs.config.Host, cs.config.Port),
@@ -669,6 +766,9 @@ func (cs *CacheServer) StartHTTPServer() error {
 
 	// Start cleanup routine
 	go cs.periodicCleanup()
+
+	// Start metrics update routine
+	go cs.updateMetrics()
 
 	log.Printf("Starting cache server on %s:%d", cs.config.Host, cs.config.Port)
 	return cs.httpServer.ListenAndServe()
@@ -762,6 +862,31 @@ func (cs *CacheServer) periodicCleanup() {
 		if err := cs.Cleanup(); err != nil {
 			log.Printf("Cleanup error: %v", err)
 		}
+	}
+}
+
+// updateMetrics updates Prometheus metrics periodically
+func (cs *CacheServer) updateMetrics() {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Update cache size and entries
+		if size, err := cs.storage.GetSize(); err == nil {
+			cacheSizeBytes.Set(float64(size))
+		}
+		cacheEntriesTotal.Set(float64(len(cs.cache)))
+
+		// Update process metrics
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		processResidentMemoryBytes.Set(float64(m.Alloc))
+		processVirtualMemoryBytes.Set(float64(m.Sys))
+		processVirtualMemoryMaxBytes.Set(float64(m.Sys)) // Approximation
+
+		// Update CPU metrics (simplified)
+		// In a real implementation, you'd track CPU time more accurately
+		processCPUUserSecondsTotal.Add(0.1) // Placeholder increment
 	}
 }
 

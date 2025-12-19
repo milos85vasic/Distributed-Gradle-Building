@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
 	"os"
 	"os/exec"
 	"strconv"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // WorkerConfig contains worker configuration
@@ -63,7 +66,7 @@ type HeartbeatReply struct {
 type WorkerService struct {
 	config     *WorkerConfig
 	rpcServer  *rpc.Server
-	httpServer *net.Listener
+	httpServer *http.Server
 }
 
 // loadWorkerConfig loads worker configuration from file and environment variables
@@ -175,6 +178,32 @@ func (ws *WorkerService) startRPCServer() error {
 	return nil
 }
 
+// startHTTPServer starts the HTTP server for metrics
+func (ws *WorkerService) startHTTPServer() error {
+	log.Printf("Starting HTTP server on port %d", ws.config.HTTPPort)
+
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	})
+
+	ws.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", ws.config.HTTPPort),
+		Handler: mux,
+	}
+
+	log.Printf("HTTP server listening on port %d", ws.config.HTTPPort)
+	go func() {
+		if err := ws.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	return nil
+}
+
 // Heartbeat sends periodic heartbeat to coordinator
 func (ws *WorkerService) Heartbeat() {
 	ticker := time.NewTicker(30 * time.Second)
@@ -272,6 +301,12 @@ func workerMain() {
 	err = service.startRPCServer()
 	if err != nil {
 		log.Fatalf("Failed to start RPC server: %v", err)
+	}
+
+	// Start HTTP server for metrics
+	err = service.startHTTPServer()
+	if err != nil {
+		log.Fatalf("Failed to start HTTP server: %v", err)
 	}
 
 	log.Printf("Worker %s started successfully", config.ID)

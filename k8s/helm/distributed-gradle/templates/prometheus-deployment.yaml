@@ -1,0 +1,72 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-prometheus
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-prometheus
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "distributed-gradle.fullname" . }}-prometheus
+  template:
+    metadata:
+      labels:
+        app: {{ include "distributed-gradle.fullname" . }}-prometheus
+        environment: {{ .Values.global.environment }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        ports:
+        - containerPort: 9090
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus/prometheus.yml
+          subPath: prometheus.yml
+        - name: rules
+          mountPath: /etc/prometheus/alert_rules.yml
+          subPath: alert_rules.yml
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "distributed-gradle.fullname" . }}-prometheus-config
+      - name: rules
+        configMap:
+          name: {{ include "distributed-gradle.fullname" . }}-prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-prometheus
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-prometheus
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  selector:
+    app: {{ include "distributed-gradle.fullname" . }}-prometheus
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP
+{{- end }}

@@ -1,0 +1,122 @@
+# Global configuration
+global:
+  namespace: staging
+  environment: staging
+  registry: your-registry.com
+  imageTag: staging
+
+# Cache component configuration
+cache:
+  enabled: true
+  replicas: 1
+  image:
+    repository: distributed-gradle-cache
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8083
+  env:
+    CACHE_PORT: "8083"
+    LOG_LEVEL: "info"
+    MAX_CACHE_SIZE: "10GB"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  persistence:
+    data:
+      enabled: true
+      size: 100Gi
+      storageClass: standard
+    logs:
+      enabled: true
+      size: 10Gi
+      storageClass: standard
+
+# Coordinator component configuration
+coordinator:
+  enabled: true
+  replicas: 1
+  image:
+    repository: distributed-gradle-coordinator
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8080
+  env:
+    COORDINATOR_PORT: "8080"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Monitor component configuration
+monitor:
+  enabled: true
+  replicas: 1
+  image:
+    repository: distributed-gradle-monitor
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8082
+  env:
+    MONITOR_PORT: "8082"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+# Worker component configuration
+worker:
+  enabled: true
+  replicas: 3
+  image:
+    repository: distributed-gradle-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 8081
+  env:
+    WORKER_PORT: "8081"
+    LOG_LEVEL: "info"
+    GIN_MODE: "release"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+# Monitoring configuration
+monitoring:
+  prometheus:
+    enabled: true
+    scrapeInterval: "15s"
+    evaluationInterval: "15s"
+    alertmanagers: []
+  grafana:
+    enabled: true
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: distributed-gradle.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

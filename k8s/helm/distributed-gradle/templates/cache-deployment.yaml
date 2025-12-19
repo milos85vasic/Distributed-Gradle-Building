@@ -1,0 +1,133 @@
+{{- if .Values.cache.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-cache
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-cache
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.cache.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "distributed-gradle.fullname" . }}-cache
+  template:
+    metadata:
+      labels:
+        app: {{ include "distributed-gradle.fullname" . }}-cache
+        environment: {{ .Values.global.environment }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: cache
+        image: "{{ .Values.global.registry }}/{{ .Values.cache.image.repository }}:{{ .Values.cache.image.tag | default .Values.global.imageTag }}"
+        imagePullPolicy: {{ .Values.cache.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.cache.port }}
+          name: http
+        env:
+        {{- range $key, $value := .Values.cache.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        resources:
+{{ toYaml .Values.cache.resources | indent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.cache.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.cache.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        {{- if .Values.cache.persistence.data.enabled }}
+        - name: cache-data
+          mountPath: /app/data/cache
+        {{- end }}
+        {{- if .Values.cache.persistence.logs.enabled }}
+        - name: cache-logs
+          mountPath: /app/logs
+        {{- end }}
+      volumes:
+      {{- if .Values.cache.persistence.data.enabled }}
+      - name: cache-data
+        persistentVolumeClaim:
+          claimName: {{ include "distributed-gradle.fullname" . }}-cache-data
+      {{- end }}
+      {{- if .Values.cache.persistence.logs.enabled }}
+      - name: cache-logs
+        persistentVolumeClaim:
+          claimName: {{ include "distributed-gradle.fullname" . }}-cache-logs
+      {{- end }}
+---
+{{- if .Values.cache.persistence.data.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-cache-data
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-cache
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.cache.persistence.data.size }}
+  storageClassName: {{ .Values.cache.persistence.data.storageClass }}
+---
+{{- end }}
+{{- if .Values.cache.persistence.logs.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-cache-logs
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-cache
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.cache.persistence.logs.size }}
+  storageClassName: {{ .Values.cache.persistence.logs.storageClass }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-cache
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-cache
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  selector:
+    app: {{ include "distributed-gradle.fullname" . }}-cache
+  ports:
+  - name: http
+    port: {{ .Values.cache.port }}
+    targetPort: {{ .Values.cache.port }}
+  type: ClusterIP
+{{- end }}

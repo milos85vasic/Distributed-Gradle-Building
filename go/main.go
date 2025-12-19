@@ -18,6 +18,9 @@ import (
 	"time"
 
 	"distributed-gradle-building/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	_ "net/http/pprof"
 )
 
 // Use types from types package instead of redefining them
@@ -42,6 +45,38 @@ type BuildCoordinator struct {
 	rpcServer    *rpc.Server
 	listener     net.Listener
 }
+
+// Prometheus metrics for coordinator
+var (
+	activeBuilds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_builds",
+			Help: "Number of currently active builds",
+		},
+	)
+	buildRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "build_requests_total",
+			Help: "Total number of build requests",
+		},
+		[]string{"status"},
+	)
+	buildDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "build_duration_seconds",
+			Help:    "Build duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"status"},
+	)
+	coordinatorHTTPRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "endpoint", "status"},
+	)
+)
 
 // NewWorkerPool creates a new worker pool
 func NewWorkerPool(maxWorkers int) *WorkerPool {
@@ -145,9 +180,11 @@ func (bc *BuildCoordinator) SubmitBuild(request types.BuildRequest) (string, err
 
 	bc.mutex.Lock()
 	bc.ActiveBuilds[request.RequestID] = responseChan
+	activeBuilds.Set(float64(len(bc.ActiveBuilds)))
 	bc.mutex.Unlock()
 
 	bc.BuildQueue <- request
+	buildRequestsTotal.WithLabelValues("submitted").Inc()
 
 	return request.RequestID, nil
 }
@@ -251,6 +288,8 @@ func (bc *BuildCoordinator) ProcessBuild(request types.BuildRequest) types.Build
 	duration := time.Since(startTime)
 
 	if err != nil {
+		buildRequestsTotal.WithLabelValues("failed").Inc()
+		buildDuration.WithLabelValues("failed").Observe(duration.Seconds())
 		return types.BuildResponse{
 			Success:       false,
 			WorkerID:      worker.ID,
@@ -266,6 +305,10 @@ func (bc *BuildCoordinator) ProcessBuild(request types.BuildRequest) types.Build
 	// Calculate actual build metrics
 	cacheHits, totalRequests := bc.calculateCacheMetrics(request.ProjectPath)
 	compiledFiles := bc.countCompiledFiles(request.ProjectPath)
+
+	// Update Prometheus metrics
+	buildRequestsTotal.WithLabelValues("successful").Inc()
+	buildDuration.WithLabelValues("successful").Observe(duration.Seconds())
 
 	return types.BuildResponse{
 		Success:       true,
@@ -314,6 +357,7 @@ func (bc *BuildCoordinator) StartHTTPServer(port int) error {
 	mux.HandleFunc("/api/workers", bc.handleWorkersRequest)
 	mux.HandleFunc("/api/status", bc.handleStatusRequest)
 	mux.HandleFunc("/health", bc.handleHealthCheck)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	bc.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
@@ -345,11 +389,13 @@ func (bc *BuildCoordinator) processBuildQueue() {
 		go func(req types.BuildRequest) {
 			response := bc.ProcessBuild(req)
 
-			bc.mutex.RLock()
+			bc.mutex.Lock()
 			if responseChan, exists := bc.ActiveBuilds[req.RequestID]; exists {
 				responseChan <- response
+				delete(bc.ActiveBuilds, req.RequestID)
+				activeBuilds.Set(float64(len(bc.ActiveBuilds)))
 			}
-			bc.mutex.RUnlock()
+			bc.mutex.Unlock()
 		}(request)
 	}
 }
@@ -410,6 +456,14 @@ func (bc *BuildCoordinator) handleHealthCheck(w http.ResponseWriter, r *http.Req
 
 // Main coordinator application entry point
 func coordinatorMain() {
+	// Register Prometheus metrics
+	prometheus.MustRegister(
+		activeBuilds,
+		buildRequestsTotal,
+		buildDuration,
+		coordinatorHTTPRequestsTotal,
+	)
+
 	coordinator := NewBuildCoordinator(10)
 
 	// Setup graceful shutdown

@@ -1,0 +1,87 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-prometheus-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-prometheus
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: {{ .Values.monitoring.prometheus.scrapeInterval }}
+      evaluation_interval: {{ .Values.monitoring.prometheus.evaluationInterval }}
+
+    rule_files:
+      - "alert_rules.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              {{- range .Values.monitoring.prometheus.alertmanagers }}
+              - {{ . }}
+              {{- end }}
+
+    scrape_configs:
+      - job_name: 'distributed-gradle-cache'
+        static_configs:
+          - targets: ['{{ include "distributed-gradle.fullname" . }}-cache:{{ .Values.cache.port }}']
+        metrics_path: /metrics
+        scrape_interval: {{ .Values.monitoring.prometheus.scrapeInterval }}
+
+      - job_name: 'distributed-gradle-coordinator'
+        static_configs:
+          - targets: ['{{ include "distributed-gradle.fullname" . }}-coordinator:{{ .Values.coordinator.port }}']
+        metrics_path: /metrics
+        scrape_interval: {{ .Values.monitoring.prometheus.scrapeInterval }}
+
+      - job_name: 'distributed-gradle-monitor'
+        static_configs:
+          - targets: ['{{ include "distributed-gradle.fullname" . }}-monitor:{{ .Values.monitor.port }}']
+        metrics_path: /metrics
+        scrape_interval: {{ .Values.monitoring.prometheus.scrapeInterval }}
+
+      - job_name: 'distributed-gradle-worker'
+        static_configs:
+          {{- range $i := until (.Values.worker.replicas | int) }}
+          - targets: ['{{ include "distributed-gradle.fullname" . }}-worker-{{ $i }}:{{ $.Values.worker.port }}']
+          {{- end }}
+        metrics_path: /metrics
+        scrape_interval: {{ .Values.monitoring.prometheus.scrapeInterval }}
+
+  alert_rules.yml: |
+    groups:
+    - name: distributed-gradle
+      rules:
+      - alert: CacheHighMemoryUsage
+        expr: (process_resident_memory_bytes{job="distributed-gradle-cache"} / process_virtual_memory_max_bytes) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache service high memory usage"
+          description: "Cache service memory usage is above 80% for more than 5 minutes"
+
+      - alert: CoordinatorDown
+        expr: up{job="distributed-gradle-coordinator"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Coordinator service is down"
+          description: "Coordinator service has been down for more than 1 minute"
+
+      - alert: WorkerPoolLow
+        expr: count(up{job="distributed-gradle-worker"}) < {{ .Values.worker.replicas | int }}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Worker pool size reduced"
+          description: "Number of active workers is below configured replicas"
+{{- end }}

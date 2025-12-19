@@ -1,0 +1,179 @@
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "distributed-gradle.fullname" . }}-grafana-dashboard
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ include "distributed-gradle.fullname" . }}-grafana
+    environment: {{ .Values.global.environment }}
+    chart: {{ include "distributed-gradle.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Distributed Gradle Building",
+        "tags": ["distributed-gradle"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Service Health",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job=~\"distributed-gradle-.*\"}",
+                "legendFormat": "{{`{{job}}`}}"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "UP",
+                        "color": "green"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(process_cpu_user_seconds_total{job=~\"distributed-gradle-.*\"}[5m]) * 100",
+                "legendFormat": "{{`{{job}}`}} CPU %"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "process_resident_memory_bytes{job=~\"distributed-gradle-.*\"} / 1024 / 1024",
+                "legendFormat": "{{`{{job}}`}} Memory (MB)"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "HTTP Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{job=~\"distributed-gradle-.*\"}[5m])",
+                "legendFormat": "{{`{{job}}`}} requests/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 8
+            }
+          },
+          {
+            "id": 5,
+            "title": "Cache Hit Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(cache_hits_total{job=\"distributed-gradle-cache\"}[5m]) / rate(cache_requests_total{job=\"distributed-gradle-cache\"}[5m]) * 100",
+                "legendFormat": "Cache Hit Rate %"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 6,
+            "title": "Active Builds",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "active_builds{job=\"distributed-gradle-coordinator\"}",
+                "legendFormat": "Active Builds"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 16
+            }
+          },
+          {
+            "id": 7,
+            "title": "Worker Pool Status",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "up{job=\"distributed-gradle-worker\"}",
+                "legendFormat": "{{`{{instance}}`}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 24
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "timepicker": {},
+        "templating": {
+          "list": []
+        },
+        "annotations": {
+          "list": []
+        },
+        "refresh": "5s",
+        "schemaVersion": 27,
+        "version": 0,
+        "links": []
+      }
+    }
+{{- end }}

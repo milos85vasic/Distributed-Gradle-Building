@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"plugin"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // WorkerNode represents a distributed build worker
@@ -88,12 +91,45 @@ type BuildPlugin interface {
 
 // WorkerService implements the RPC service for build workers
 type WorkerService struct {
-	worker  *WorkerNode
-	config  *WorkerConfig
-	plugins []BuildPlugin
-	builds  chan BuildRequestCoordinator
-	mutex   sync.RWMutex
+	worker     *WorkerNode
+	config     *WorkerConfig
+	plugins    []BuildPlugin
+	builds     chan BuildRequestCoordinator
+	httpServer *http.Server
+	mutex      sync.RWMutex
 }
+
+// Prometheus metrics for worker
+var (
+	workerBuildsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "worker_builds_total",
+			Help: "Total number of builds executed by worker",
+		},
+		[]string{"status"},
+	)
+	workerBuildDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "worker_build_duration_seconds",
+			Help:    "Build duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"status"},
+	)
+	workerActiveBuilds = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "worker_active_builds",
+			Help: "Number of currently active builds on worker",
+		},
+	)
+	workerHTTPRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "endpoint", "status"},
+	)
+)
 
 // BuildRequestCoordinator forwarded from coordinator
 type BuildRequestCoordinator struct {
@@ -132,6 +168,14 @@ func NewWorkerNode(config *WorkerConfig) *WorkerNode {
 
 // NewWorkerService creates a new worker service
 func NewWorkerService(config *WorkerConfig) *WorkerService {
+	// Register Prometheus metrics
+	prometheus.MustRegister(
+		workerBuildsTotal,
+		workerBuildDuration,
+		workerActiveBuilds,
+		workerHTTPRequestsTotal,
+	)
+
 	worker := NewWorkerNode(config)
 
 	service := &WorkerService{

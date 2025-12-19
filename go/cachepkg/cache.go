@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"distributed-gradle-building/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // CacheServer represents a distributed build cache server
@@ -53,6 +55,74 @@ type CacheMetrics struct {
 	LastCleanup time.Time        `json:"last_cleanup"`
 	Operations  map[string]int64 `json:"operations"`
 }
+
+// Prometheus metrics
+var (
+	cacheHits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hits_total",
+			Help: "Total number of cache hits",
+		},
+		[]string{"operation"},
+	)
+	cacheMisses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_misses_total",
+			Help: "Total number of cache misses",
+		},
+		[]string{"operation"},
+	)
+	cacheRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_requests_total",
+			Help: "Total number of cache requests",
+		},
+		[]string{"operation"},
+	)
+	cacheSize = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cache_size_bytes",
+			Help: "Current cache size in bytes",
+		},
+	)
+	cacheEntries = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cache_entries_total",
+			Help: "Total number of cache entries",
+		},
+	)
+	processResMem = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_resident_memory_bytes",
+			Help: "Resident memory size in bytes",
+		},
+	)
+	processVirtMem = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_virtual_memory_bytes",
+			Help: "Virtual memory size in bytes",
+		},
+	)
+	processVirtMemMax = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "process_virtual_memory_max_bytes",
+			Help: "Maximum virtual memory size in bytes",
+		},
+	)
+	processCPUUser = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "process_cpu_user_seconds_total",
+			Help: "Total user CPU time spent in seconds",
+		},
+	)
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "endpoint", "status"},
+	)
+)
 
 // FileSystemStorage implements file system based cache storage
 type FileSystemStorage struct {

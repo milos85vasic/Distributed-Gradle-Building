@@ -29,6 +29,8 @@ func (s *MLServer) Start() error {
 	http.HandleFunc("/api/train", s.handleTrain)
 	http.HandleFunc("/api/scaling", s.handleScalingAdvice)
 	http.HandleFunc("/api/stats", s.handleStats)
+	http.HandleFunc("/api/learning", s.handleLearningStats)
+	http.HandleFunc("/api/rollback", s.handleRollback)
 	http.HandleFunc("/api/export", s.handleExport)
 	http.HandleFunc("/api/import", s.handleImport)
 
@@ -115,6 +117,42 @@ func (s *MLServer) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+func (s *MLServer) handleLearningStats(w http.ResponseWriter, r *http.Request) {
+	response := s.mlService.GetLearningStats()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (s *MLServer) handleRollback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Version string `json:"version"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Version == "" {
+		http.Error(w, "Version is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.mlService.RollbackToVersion(req.Version); err != nil {
+		http.Error(w, fmt.Sprintf("Rollback failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "rollback_completed", "version": req.Version})
 }
 
 func (s *MLServer) handleExport(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +286,9 @@ func main() {
 	// Add test data for demonstration
 	server.AddTestData()
 
+	// Start continuous learning
+	server.mlService.StartContinuousLearning()
+
 	log.Printf("Starting ML Service on port %d", port)
 	log.Printf("Endpoints:")
 	log.Printf("  GET  /health - Health check")
@@ -255,8 +296,11 @@ func main() {
 	log.Printf("  POST /api/train - Train ML models")
 	log.Printf("  GET  /api/scaling - Get scaling advice")
 	log.Printf("  GET  /api/stats - Get ML service statistics")
+	log.Printf("  GET  /api/learning - Get continuous learning statistics")
+	log.Printf("  POST /api/rollback - Rollback to model version")
 	log.Printf("  GET  /api/export - Export ML data")
 	log.Printf("  POST /api/import - Import ML data")
+	log.Printf("Continuous learning: ENABLED")
 
 	if err := server.Start(); err != nil {
 		log.Fatalf("Server failed to start: %v", err)

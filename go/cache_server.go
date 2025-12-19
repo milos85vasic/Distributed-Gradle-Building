@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
@@ -63,30 +62,7 @@ var (
 			Help: "Total number of cache entries",
 		},
 	)
-	processResidentMemoryBytes = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "process_resident_memory_bytes",
-			Help: "Resident memory size in bytes",
-		},
-	)
-	processVirtualMemoryBytes = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "process_virtual_memory_bytes",
-			Help: "Virtual memory size in bytes",
-		},
-	)
-	processVirtualMemoryMaxBytes = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "process_virtual_memory_max_bytes",
-			Help: "Maximum virtual memory size in bytes",
-		},
-	)
-	processCPUUserSecondsTotal = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "process_cpu_user_seconds_total",
-			Help: "Total user CPU time spent in seconds",
-		},
-	)
+
 	httpRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -210,10 +186,6 @@ func NewCacheServer(config *CacheConfig) (*CacheServer, error) {
 		cacheRequestsTotal,
 		cacheSizeBytes,
 		cacheEntriesTotal,
-		processResidentMemoryBytes,
-		processVirtualMemoryBytes,
-		processVirtualMemoryMaxBytes,
-		processCPUUserSecondsTotal,
 		httpRequestsTotal,
 	)
 
@@ -877,16 +849,6 @@ func (cs *CacheServer) updateMetrics() {
 		}
 		cacheEntriesTotal.Set(float64(len(cs.cache)))
 
-		// Update process metrics
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-		processResidentMemoryBytes.Set(float64(m.Alloc))
-		processVirtualMemoryBytes.Set(float64(m.Sys))
-		processVirtualMemoryMaxBytes.Set(float64(m.Sys)) // Approximation
-
-		// Update CPU metrics (simplified)
-		// In a real implementation, you'd track CPU time more accurately
-		processCPUUserSecondsTotal.Add(0.1) // Placeholder increment
 	}
 }
 

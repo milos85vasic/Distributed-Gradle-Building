@@ -10,6 +10,8 @@ services:
     environment:
       - COORDINATOR_PORT=8080
       - COORDINATOR_RPC_PORT=8081
+      - ML_SERVICE_HOST=ml-service
+      - ML_SERVICE_PORT=8082
       - LOG_LEVEL=info
     volumes:
       - coordinator_data:/app/data
@@ -18,6 +20,7 @@ services:
       - distributed-gradle
     depends_on:
       - cache
+      - ml-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 30s
@@ -26,37 +29,58 @@ services:
       start_period: 40s
     restart: unless-stopped
 
-   worker-1:
-     build:
-       context: ..
-       dockerfile: docker/Dockerfile.worker
-     container_name: distributed-gradle-worker-1
-     ports:
-       - "8082:8082"
-     environment:
-       - WORKER_ID=worker-1
-       - WORKER_PORT=8082
-       - COORDINATOR_HOST=coordinator
-       - COORDINATOR_RPC_PORT=8081
-       - CACHE_HOST=cache
-       - CACHE_PORT=8083
-       - LOG_LEVEL=info
-       - MAX_BUILDS=5
-     volumes:
-       - worker1_data:/app/data
-       - worker1_logs:/app/logs
-       - worker1_gradle:/app/gradle-home
-       - worker1_cache:/app/cache
-       - ../tests:/app/tests:ro
-      networks:
-        - distributed-gradle
-      depends_on:
-services:
-  coordinator:
-          condition: service_healthy
-        cache:
-          condition: service_healthy
-      restart: unless-stopped
+  ml-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ml
+    container_name: distributed-gradle-ml
+    ports:
+      - "8082:8082"  # ML service API
+    environment:
+      - LOG_LEVEL=info
+    volumes:
+      - ml_data:/app/data
+      - ml_logs:/app/logs
+    networks:
+      - distributed-gradle
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  worker-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: distributed-gradle-worker-1
+    ports:
+      - "8087:8087"
+    environment:
+      - WORKER_ID=worker-1
+      - WORKER_PORT=8087
+      - COORDINATOR_HOST=coordinator
+      - COORDINATOR_RPC_PORT=8081
+      - CACHE_HOST=cache
+      - CACHE_PORT=8083
+      - LOG_LEVEL=info
+      - MAX_BUILDS=5
+    volumes:
+      - worker1_data:/app/data
+      - worker1_logs:/app/logs
+      - worker1_gradle:/app/gradle-home
+      - worker1_cache:/app/cache
+      - ../tests:/app/tests:ro
+    networks:
+      - distributed-gradle
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: unless-stopped
 
   worker-2:
     build:
@@ -64,10 +88,10 @@ services:
       dockerfile: docker/Dockerfile.worker
     container_name: distributed-gradle-worker-2
     ports:
-      - "8083:8083"
+      - "8088:8088"
     environment:
       - WORKER_ID=worker-2
-      - WORKER_PORT=8083
+      - WORKER_PORT=8088
       - COORDINATOR_HOST=coordinator
       - COORDINATOR_RPC_PORT=8081
       - CACHE_HOST=cache
@@ -94,10 +118,10 @@ services:
       dockerfile: docker/Dockerfile.worker
     container_name: distributed-gradle-worker-3
     ports:
-      - "8084:8084"
+      - "8089:8089"
     environment:
       - WORKER_ID=worker-3
-      - WORKER_PORT=8084
+      - WORKER_PORT=8089
       - COORDINATOR_HOST=coordinator
       - COORDINATOR_RPC_PORT=8081
       - CACHE_HOST=cache
@@ -128,6 +152,8 @@ services:
     environment:
       - CACHE_HOST=0.0.0.0
       - CACHE_PORT=8083
+      - ML_SERVICE_HOST=ml-service
+      - ML_SERVICE_PORT=8082
       - LOG_LEVEL=info
       - MAX_CACHE_SIZE=10737418240
       - STORAGE_DIR=/app/data/cache
@@ -139,6 +165,8 @@ services:
       - cache_logs:/app/logs
     networks:
       - distributed-gradle
+    depends_on:
+      - ml-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
       interval: 30s
@@ -160,6 +188,8 @@ services:
       - COORDINATOR_PORT=8080
       - CACHE_HOST=cache
       - CACHE_PORT=8083
+      - ML_SERVICE_HOST=ml-service
+      - ML_SERVICE_PORT=8082
       - LOG_LEVEL=info
     volumes:
       - monitor_data:/app/data
@@ -171,6 +201,8 @@ services:
         condition: service_healthy
       cache:
         condition: service_healthy
+      ml-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
       interval: 30s
@@ -180,24 +212,26 @@ services:
     restart: unless-stopped
 
 volumes:
-  coordinator_data:
-  coordinator_logs:
-  worker1_data:
-  worker1_logs:
-  worker1_gradle:
-  worker1_cache:
-  worker2_data:
-  worker2_logs:
-  worker2_gradle:
-  worker2_cache:
-  worker3_data:
-  worker3_logs:
-  worker3_gradle:
-  worker3_cache:
-  cache_data:
-  cache_logs:
-  monitor_data:
-  monitor_logs:
+   coordinator_data:
+   coordinator_logs:
+   ml_data:
+   ml_logs:
+   worker1_data:
+   worker1_logs:
+   worker1_gradle:
+   worker1_cache:
+   worker2_data:
+   worker2_logs:
+   worker2_gradle:
+   worker2_cache:
+   worker3_data:
+   worker3_logs:
+   worker3_gradle:
+   worker3_cache:
+   cache_data:
+   cache_logs:
+   monitor_data:
+   monitor_logs:
 
 networks:
   distributed-gradle:

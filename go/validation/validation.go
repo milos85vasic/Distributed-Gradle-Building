@@ -47,7 +47,7 @@ func ValidateProjectPath(path string) error {
 	cleanPath := filepath.Clean(path)
 
 	// Check for path traversal attempts
-	if strings.Contains(cleanPath, "..") {
+	if strings.Contains(path, "..") {
 		return fmt.Errorf("path traversal not allowed: %s", path)
 	}
 
@@ -78,13 +78,7 @@ func ValidateTaskName(taskName string) error {
 		return fmt.Errorf("task name cannot be empty")
 	}
 
-	// Gradle task name regex (alphanumeric, hyphens, underscores, colons)
-	validTaskName := regexp.MustCompile(`^[a-zA-Z0-9:_-]+$`)
-	if !validTaskName.MatchString(taskName) {
-		return fmt.Errorf("invalid task name format: %s", taskName)
-	}
-
-	// Check for dangerous characters or patterns
+	// Check for dangerous characters or patterns first
 	dangerousPatterns := []string{
 		"<script", "</script>", "javascript:", "data:", "vbscript:",
 		"&&", "||", "|", ";", "&", "`", "$", "$(", "${",
@@ -95,6 +89,12 @@ func ValidateTaskName(taskName string) error {
 		if strings.Contains(lowerTaskName, pattern) {
 			return fmt.Errorf("dangerous pattern '%s' in task name", pattern)
 		}
+	}
+
+	// Gradle task name regex (alphanumeric, hyphens, underscores, colons)
+	validTaskName := regexp.MustCompile(`^[a-zA-Z0-9:_-]+$`)
+	if !validTaskName.MatchString(taskName) {
+		return fmt.Errorf("invalid task name format: %s", taskName)
 	}
 
 	// Validate length

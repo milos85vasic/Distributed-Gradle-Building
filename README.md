@@ -1,325 +1,477 @@
 # Distributed Gradle Building System
 
-A robust, automated solution for accelerating Gradle builds across multiple machines using a master-worker architecture. This system provides automated code synchronization, high-parallel builds, and optional remote build caching for Java/Kotlin projects and Android applications.
+## 🚀 Overview
 
-## Overview
+The Distributed Gradle Building System enables **true distributed compilation** across multiple worker machines, utilizing their combined CPU cores and memory for faster builds.
 
-This distributed build system offers two implementation approaches:
+> **⚠️ IMPORTANT:** The original `sync_and_build.sh` has been upgraded from a simple file sync script to use **real distributed building** that actually utilizes worker resources.
 
-### 1. **Bash Implementation (Quick Start)**
-- Script-based automation with rsync and SSH
-- Simple setup with minimal dependencies
-- Perfect for small teams and individual developers
-- Fast deployment with existing infrastructure
+## 🎯 Key Features
 
-### 2. **Go Implementation (Production-Grade)**
-- High-performance, scalable services
-- RESTful APIs for programmatic integration
-- Advanced monitoring and metrics
-- Enterprise-ready with comprehensive features
+- ✅ **True Distributed Building** - Tasks executed on multiple workers
+- ✅ **Resource Utilization** - CPU and memory from all workers used
+- ✅ **Load Balancing** - Intelligent task distribution based on worker capacity
+- ✅ **Real-time Monitoring** - Track CPU, memory, and network usage per worker
+- ✅ **Build Artifact Collection** - Consolidate results from all workers
+- ✅ **Fault Tolerance** - Automatic retry and worker failure handling
+- ✅ **Performance Metrics** - Detailed build statistics and optimization insights
 
-## Key Features
-
-### Both Implementations
-- **Automated Setup**: One-click configuration for master and worker nodes
-- **Intelligent Syncing**: Excludes build artifacts and caches from synchronization
-- **Optimized Parallelism**: Auto-detects CPU cores and configures optimal worker count
-- **Remote Caching**: Optional HTTP-based build cache server
-- **Error Handling**: Robust error checking and validation
-
-### Go Implementation Only
-- **RESTful APIs**: Full HTTP API for integration with CI/CD systems
-- **Real-time Monitoring**: Comprehensive metrics and alerting system
-- **Advanced Caching**: Configurable storage backends with TTL and compression
-- **Auto-scaling**: Dynamic worker pool management
-- **Health Checks**: Built-in health monitoring for all components
-- **Structured Logging**: Detailed logs with configurable levels
-- **Docker/Kubernetes Support**: Containerized deployment options
-
-## Architecture
+## 📋 Architecture
 
 ```
-Distributed Gradle Building System
-├── Go Components (Core Services)
-│   ├── Build Coordinator (main.go)
-│   ├── Worker Nodes (worker.go)
-│   ├── Cache Server (cache_server.go)
-│   └── Monitoring System (monitor.go)
-├── Bash Components (Utilities & Management)
-│   ├── Performance Analyzer (scripts/performance_analyzer.sh)
-│   ├── Worker Pool Manager (scripts/worker_pool_manager.sh)
-│   ├── Cache Manager (scripts/cache_manager.sh)
-│   └── Health Checker (scripts/health_checker.sh)
-└── Setup Scripts
-    ├── Master Setup (setup_master.sh)
-    ├── Worker Setup (setup_worker.sh)
-    └── SSH Setup (setup_passwordless_ssh.sh)
+┌─────────────┐     SSH/Rsync     ┌─────────────┐
+│   Master    │ ◄──────────────► │  Worker 1   │
+│             │                 │ 8 cores, 16GB│
+│ distributes │                 └─────────────┘
+│   tasks     │                      │
+│             │                      │
+└─────────────┘                      ▼
+      │                     ┌─────────────┐
+      │                     │  Worker 2   │
+      ▼                     │ 8 cores, 16GB│
+┌─────────────┐             └─────────────┘
+│  Worker 3   │                      │
+│ 8 cores, 16GB│                      │
+└─────────────┘                      ▼
+                               ┌─────────────┐
+                               │  Worker N   │
+                               │ 8 cores, 16GB│
+                               └─────────────┘
 ```
 
-## Quick Start
+## 🛠️ Installation
 
-Choose your implementation approach:
+### Choose Your Implementation
 
-### **🐚 Bash Implementation (Quick Start - 30 minutes)**
+This project offers **two complete implementations**:
 
-#### Prerequisites
-- Linux machines (Ubuntu/Debian recommended)
-- OpenJDK 17 (or your project's required version)
-- SSH access between all machines
-- Same absolute project path on all machines
+#### **Bash Implementation** (Quick Start)
+- Simple to set up and understand
+- Works with existing SSH infrastructure
+- Ideal for small to medium teams
+- **Get Started in 5 minutes** → [Quick Start Guide](QUICK_START.md)
 
-#### 1. Setup Passwordless SSH
+#### **Go Implementation** (Enterprise Scale)
+- RESTful API and RPC interfaces
+- Advanced monitoring and caching
+- Horizontal scaling capabilities
+- Microservices architecture
+- **Get Started** → [Go Deployment Guide](docs/GO_DEPLOYMENT.md)
+
+---
+
+### Prerequisites (Both Implementations)
+
+- Linux-based system (Ubuntu/Debian recommended)
+- OpenSSH server and client
+- Java 17+ JDK
+- Passwordless SSH between machines
+- Gradle project structure
+
+## 🚀 Quick Start
+
+### Choose Your Implementation:
+
+#### **Option 1: Bash Implementation** (5-minute setup)
+1. **Master Setup:**
+   ```bash
+   ./setup_master.sh /path/to/gradle/project
+   ```
+
+2. **Worker Setup** (run on each worker):
+   ```bash
+   ./setup_worker.sh /path/to/gradle/project
+   ```
+
+3. **Start Distributed Build:**
+   ```bash
+   cd /path/to/gradle/project
+   ./sync_and_build.sh assemble
+   ```
+
+#### **Option 2: Go Implementation** (Enterprise scale)
+1. **Deploy Services:**
+   ```bash
+   # See docs/GO_DEPLOYMENT.md for detailed setup
+   cd go
+   go mod tidy
+   ./deploy_all_services.sh
+   ```
+
+2. **Configure Client:**
+   ```bash
+   # Use Go client or REST API
+   ./client/example/main
+   ```
+
+📖 **Need help?** → [Complete Setup Guide](docs/SETUP_GUIDE.md)
+
+### 1. Passwordless SSH Configuration
+
+Run the automated SSH setup:
+
 ```bash
-# Run on any machine
 ./setup_passwordless_ssh.sh
 ```
 
-#### 2. Configure Workers
-Run on each worker machine:
+Or manually configure:
+
 ```bash
-./setup_worker.sh /absolute/path/to/your/gradle/project
+# On master, generate SSH key if not exists
+ssh-keygen -t rsa -b 4096
+
+# Copy to each worker
+ssh-copy-id user@worker1-ip
+ssh-copy-id user@worker2-ip
+# ... for all workers
 ```
 
-#### 3. Configure Master
-Run on the master machine:
+### 2. Master Machine Setup
+
+The master coordinates the distributed build:
+
 ```bash
-./setup_master.sh /absolute/path/to/your/gradle/project
+./setup_master.sh /path/to/your/gradle/project
 ```
 
-#### 4. Start Building
-From your project directory on master:
+This will:
+- Install required packages (rsync, openjdk-17-jdk, jq)
+- Test SSH connectivity to all workers
+- Detect system resources
+- Create configuration in `.gradlebuild_env`
+- Set up distributed build directories
+
+### 3. Worker Machine Setup
+
+Each worker contributes its CPU and memory:
+
 ```bash
-./sync_and_build.sh
+./setup_worker.sh /path/to/your/gradle/project
 ```
 
----
+This will:
+- Install required packages
+- Detect worker resources (CPU, memory, disk)
+- Create worker directories and monitoring
+- Start health monitoring service
+- Configure worker for distributed tasks
 
-### **🚀 Go Implementation (Production-Grade - 1-2 hours)**
+## 🚀 Usage
 
-#### Prerequisites
-- Go 1.19 or later
-- Linux/macOS/Windows
-- Docker (optional, for containerization)
-- Gradle and Java installed
+### Basic Distributed Build
 
-#### 1. Quick Demo
 ```bash
-# Run automated demo
-./scripts/go_demo.sh demo
+cd /path/to/gradle/project
+./sync_and_build.sh assemble    # Distributed assembly
+./sync_and_build.sh test        # Distributed testing
+./sync_and_build.sh clean       # Clean distributed artifacts
 ```
 
-#### 2. Manual Setup
+### Advanced Usage
+
 ```bash
-# Build all components
-./scripts/build_and_deploy.sh build
+# Use specific task
+./sync_and_build.sh compileJava
 
-# Start all services
-./scripts/build_and_deploy.sh start
+# Direct distributed build (bypasses sync_and_build.sh wrapper)
+./distributed_gradle_build.sh assemble
 
-# Check system status
-./scripts/build_and_deploy.sh status
+# Monitor distributed build in real-time
+tail -f .distributed/logs/distributed_build.log
 
-# Submit build via API
-curl -X POST http://localhost:8080/api/build \
-  -H "Content-Type: application/json" \
-  -d '{"project_path":"/path/to/project","task_name":"build","cache_enabled":true}'
+# View worker resource usage
+./distributed_gradle_build.sh --status
 ```
 
-#### 3. Production Deployment
-```bash
-# Follow deployment guide
-# docs/GO_DEPLOYMENT.md
+## 📊 Resource Utilization
 
-# Use Docker/Kubernetes for production
-docker-compose up -d
-# or
-kubectl apply -f k8s/
+### Before (Local Parallel Build)
+- **CPU:** 1 machine × 8 cores = 8 cores
+- **Memory:** 1 machine × 16GB = 16GB
+- **Concurrency:** Local threads only
+
+### After (Distributed Build with 4 Workers)
+- **CPU:** 4 machines × 8 cores = 32 cores (**4× improvement**)
+- **Memory:** 4 machines × 16GB = 64GB (**4× improvement**)
+- **Concurrency:** 4 machines × parallel tasks
+
+## 🔍 Monitoring and Metrics
+
+### Real-time Monitoring
+
+```bash
+# Watch distributed build progress
+watch -n 1 'cat .distributed/metrics/build_metrics.json | jq'
+
+# Monitor individual workers
+for worker in $WORKER_IPS; do
+    ssh $worker "cat $PROJECT_DIR/.distributed/metrics/worker_metrics.json"
+done
 ```
 
----
+### Performance Metrics
 
-### **📊 Which Implementation to Choose?**
+The system tracks:
+- Build duration and task completion rates
+- CPU and memory utilization per worker
+- Network transfer and synchronization time
+- Success/failure rates and retry statistics
+- Artifact collection efficiency
 
-| Use Case | Recommended | Why |
-|----------|-------------|-----|
-| Personal projects | Bash | Simple, fast setup |
-| Small teams (2-5 developers) | Bash → Go (scale later) | Start simple, upgrade as needed |
-| Medium/Large teams | Go | APIs, monitoring, better scalability |
-| CI/CD integration | Go | RESTful APIs, enterprise features |
-| Research/Analytics | Go | Comprehensive metrics and monitoring |
+### Available Metrics
 
-### 5. Go Implementation (Advanced)
-
-For maximum performance and scalability, use the Go-based distributed build system:
-
-#### Start Core Services
 ```bash
-# Build and start coordinator
-cd go
-go build -o coordinator main.go
-./coordinator &
+# Build metrics
+jq '.metrics' .distributed/metrics/build_metrics.json
 
-# Build and start cache server
-go build -o cache_server cache_server.go
-./cache_server &
+# Worker metrics
+jq '.worker_cpu_usage' .distributed/metrics/build_metrics.json
+jq '.worker_memory_usage' .distributed/metrics/build_metrics.json
 
-# Build and start monitor
-go build -o monitor monitor.go
-./monitor &
-
-# Start worker nodes
-go build -o worker worker.go
-./worker worker_config.json &
+# Task distribution
+jq '.tasks' .distributed/metrics/build_metrics.json
 ```
 
-#### Configure Multiple Workers
-Create additional worker configs:
+## 🧪 Testing and Verification
+
+### Run Comprehensive Tests
+
 ```bash
-# worker-002 config
-cp worker_config.json worker_002_config.json
-# Edit worker_002_config.json with unique ID and port
-./worker worker_002_config.json &
+# Quick verification
+./tests/quick_distributed_verification.sh
+
+# Comprehensive test suite
+./tests/comprehensive/test_distributed_build.sh all
+
+# Integration tests
+./tests/integration/test_distributed_build_verification.sh all
 ```
 
-#### Use HTTP API
+### Test Categories
+
+1. **Task Analysis Tests** - Verify task decomposition
+2. **Resource Utilization Tests** - Validate CPU/memory usage
+3. **Distributed Execution Tests** - Test remote task execution
+4. **Artifact Collection Tests** - Verify build result consolidation
+5. **Performance Tests** - Compare local vs distributed builds
+6. **Error Handling Tests** - Test fault tolerance and recovery
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `.gradlebuild_env` in your project root:
+
 ```bash
-# Submit build
-curl -X POST http://localhost:8080/api/build \
-  -H "Content-Type: application/json" \
-  -d '{"project_path":"/path/to/project","task_name":"build","cache_enabled":true}'
-
-# Check workers status
-curl http://localhost:8080/api/workers
-
-# Monitor system metrics
-curl http://localhost:8084/api/metrics
+export WORKER_IPS="192.168.1.101 192.168.1.102 192.168.1.103"
+export MAX_WORKERS=8
+export PROJECT_DIR="/path/to/your/project"
+export DISTRIBUTED_BUILD=true
+export WORKER_TIMEOUT=300
+export BUILD_CACHE_ENABLED=true
 ```
 
-## Performance Gains
+### Gradle Configuration
 
-- **Large Android Projects**: 30-50% faster builds with caching
-- **Multi-module Projects**: 40-60% improvement with parallelism
-- **Incremental Builds**: 80-90% faster with remote cache
-- **Clean Builds**: 20-40% faster with distributed architecture
+Add to `gradle.properties`:
 
-## Use Cases
-
-### 1. Single Developer with Multiple Machines
-Leverage idle machines to accelerate your development builds.
-
-### 2. Team Development Setup
-Central build server with code mirrors for team members.
-
-### 3. CI/CD Acceleration
-Speed up build pipelines by distributing work across build agents.
-
-### 4. Large Monorepo Building
-Optimize build times for massive multi-module projects.
-
-## Limitations & Considerations
-
-- **No True Task Distribution**: Unlike AOSP/distcc, this system doesn't distribute individual compilation tasks across machines in real-time
-- **Java/Kotlin Characteristics**: JVM compilation is faster than C++, so distribution yields smaller gains compared to native builds
-- **Network Dependency**: Requires reliable network connectivity between machines
-- **Storage Requirements**: Each worker needs local storage for the complete project
-
-## Comparison with Alternatives
-
-| Feature | This System | Bazel | Develocity |
-|---------|-------------|-------|------------|
-| Task Distribution | ❌ | ✅ | ✅ |
-| Remote Caching | ✅ | ✅ | ✅ |
-| Test Distribution | ❌ | ✅ | ✅ |
-| Setup Complexity | Low | High | Medium |
-| Cost | Free | Free | Commercial |
-| Gradle Native | ✅ | ❌ | ✅ |
-
-## Advanced Configuration
-
-### Remote Build Cache Setup
-
-1. Start cache server on master:
-```bash
-cd /path/to/project
-mkdir -p build-cache
-nohup python3 -m http.server 8080 --directory build-cache &
-```
-
-2. Configure in `gradle.properties`:
 ```properties
-org.gradle.caching=true
+# Enable distributed build optimizations
 org.gradle.parallel=true
 org.gradle.workers.max=8
+org.gradle.caching=true
+org.gradle.configureondemand=true
 
-[buildCache]
-remote.enabled=true
-remote.url=http://MASTER_IP:8080/
-remote.push=true
+# Network optimizations for distributed builds
+org.gradle.daemon=true
+org.gradle.jvmargs=-Xmx4g -XX:+UseG1GC
 ```
 
-### Custom Build Commands
-
-Run specific tasks instead of default `assemble`:
-```bash
-./sync_and_build.sh clean :app:bundleRelease
-```
-
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-**SSH Connection Failed**
+1. **SSH Connection Failed**
+   ```bash
+   # Test connectivity
+   ssh worker-ip "echo 'OK'"
+   
+   # Setup passwordless SSH
+   ssh-copy-id user@worker-ip
+   ```
+
+2. **Workers Not Utilized**
+   ```bash
+   # Check worker status
+   ./distributed_gradle_build.sh --check-workers
+   
+   # Verify SSH and Gradle on workers
+   ssh worker-ip "cd $PROJECT_DIR && ./gradlew --version"
+   ```
+
+3. **Build Artifacts Missing**
+   ```bash
+   # Check artifact collection
+   ls -la build/distributed/
+   
+   # Force collection
+   ./distributed_gradle_build.sh --collect-artifacts
+   ```
+
+### Debug Mode
+
+Enable detailed logging:
+
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=5 worker_ip echo "OK"
+export DEBUG=true
+./sync_and_build.sh assemble
 ```
 
-**Rsync Sync Issues**
-Check excluded patterns in sync_and_build.sh and adjust if needed.
+### Log Locations
 
-**Gradle Daemon Issues**
+- Master logs: `.distributed/logs/`
+- Worker logs: `$PROJECT_DIR/.distributed/logs/`
+- Build metrics: `.distributed/metrics/build_metrics.json`
+
+## 📈 Performance Optimization
+
+### Scaling Guidelines
+
+| Workers | CPU Cores | Memory | Expected Speedup |
+|---------|-----------|--------|-----------------|
+| 1       | 8         | 16GB   | 1.0x (baseline) |
+| 2       | 16        | 32GB   | 1.7-1.9x        |
+| 4       | 32        | 64GB   | 2.8-3.5x        |
+| 8       | 64        | 128GB  | 4.5-6.0x        |
+
+### Optimization Tips
+
+1. **Balance Worker Resources** - Use similar spec machines
+2. **Network Optimization** - Fast network between master/workers
+3. **Build Cache** - Enable distributed build cache
+4. **Task Granularity** - Smaller tasks distribute better
+5. **Memory Allocation** - Allocate sufficient heap per worker
+
+## 🔒 Security Considerations
+
+- Use SSH key authentication, not passwords
+- Limit SSH access to specific users
+- Monitor network traffic between machines
+- Regular security updates on all nodes
+- Isolate build environment from production systems
+
+## 📚 API Reference
+
+### sync_and_build.sh
+
+Upgraded wrapper that calls `distributed_gradle_build.sh`.
+
 ```bash
-./gradlew --stop
-./gradlew --status
+./sync_and_build.sh [task] [options]
 ```
 
-## Production Considerations
+### distributed_gradle_build.sh
 
-- **Security**: Use SSH keys instead of password authentication
-- **Monitoring**: Set up monitoring for build cache server
-- **Authentication**: Configure HTTP basic auth for production cache server
-- **Cleanup**: Implement cache cleanup strategies
+Main distributed build engine.
 
-## Migration Guide
+```bash
+./distributed_gradle_build.sh [task] [--verbose] [--dry-run]
+```
 
-### From Standard Gradle
-1. Install this system on your build machines
-2. Add remote cache configuration to gradle.properties
-3. Replace local build commands with sync_and_build.sh
+**Options:**
+- `assemble` - Build project (default)
+- `test` - Run tests distributed
+- `clean` - Clean distributed artifacts
+- `--status` - Show worker status
+- `--check-workers` - Verify worker connectivity
+- `--collect-artifacts` - Force artifact collection
 
-### From Develocity
-1. Keep Develocity for advanced features
-2. Use this system as fallback or for additional acceleration
-3. Configure both systems to work together
+### Worker API
 
-## Contributing
+Workers expose status via JSON API:
 
-Contributions are welcome! Please:
+```bash
+ssh worker-ip "cat $PROJECT_DIR/.distributed/metrics/worker_metrics.json"
+```
+
+## 🔄 Migration from Local Builds
+
+### Step 1: Backup Current Setup
+```bash
+cp sync_and_build.sh sync_and_build.sh.backup
+```
+
+### Step 2: Setup Workers
+```bash
+./setup_master.sh /path/to/project
+# On each worker:
+./setup_worker.sh /path/to/project
+```
+
+### Step 3: Test Migration
+```bash
+./tests/quick_distributed_verification.sh
+```
+
+### Step 4: Update CI/CD
+Replace local build commands with distributed ones:
+```bash
+# Before
+./gradlew assemble
+
+# After  
+./sync_and_build.sh assemble
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
+
 1. Fork the repository
-2. Create a feature branch
-3. Test thoroughly on multiple machine setups
-4. Submit a pull request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 🌐 Connected Resources
 
-This project is open-source. See LICENSE file for details.
+### 📚 Documentation
+- **[Complete Documentation](docs/)** - Comprehensive guides and references
+- **[API Reference](docs/API_REFERENCE.md)** - RESTful API documentation
+- **[Setup Guide](docs/SETUP_GUIDE.md)** - Step-by-step setup instructions
+- **[User Guide](docs/USER_GUIDE.md)** - Day-to-day usage guide
 
-## Support
+### 🔗 **Component Connections**
+- **[📡 CONNECTIONS.md](CONNECTIONS.md)** - How all components work together
+- **[🚀 QUICK_START.md](QUICK_START.md)** - 5-minute setup guide
 
-For issues and questions:
-1. Check this README and AGENTS.md
-2. Review troubleshooting section
-3. Open an issue with detailed information about your setup
+### 🌍 Website & Community
+- **[Project Website](website/)** - Full documentation site with tutorials
+- **[Live Demo](https://demo.distributed-gradle-building.com)** - Try it online
+- **[Video Courses](website/content/video-courses/)** - Beginner to advanced tutorials
+
+### 🔧 Go Implementation
+- **[Go Services](go/)** - Enterprise-scale microservices implementation
+- **[Go Deployment Guide](docs/GO_DEPLOYMENT.md)** - Deploy Go services
+- **[Client Library](go/client/)** - Go client with examples
+
+### 🧪 Testing
+- **[Test Framework](tests/)** - Comprehensive test suite
+- **[Run All Tests](scripts/run-all-tests.sh)** - Complete test runner
+- **[Validate Connections](scripts/validate_connections.sh)** - Check all component connections
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/your-repo/issues)
+- **Documentation:** [docs/](docs/)
+- **Website:** [website/](website/)
+- **Discussions:** [GitHub Discussions](https://github.com/your-repo/discussions)
 
 ---
 
-*Note: This system provides significant build acceleration for most Gradle projects. For true distributed task execution, consider Bazel migration or Develocity's commercial features.*
+**🚀 Ready to accelerate your Gradle builds with distributed computing?**
+- 🚀 **[Quick Start](QUICK_START.md)** - Get running in 5 minutes
+- 🏗️ **[Go Enterprise](go/)** - Scale with microservices
+- 🌐 **[Full Website](website/)** - Complete documentation and tutorials

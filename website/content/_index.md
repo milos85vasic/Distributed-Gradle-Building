@@ -35,27 +35,45 @@ The system consists of three main components:
 
 ## 🛠️ Quick Start
 
-Get started in just three simple steps:
+### Choose Your Implementation:
 
-### 1. Clone and Set Up
-```bash
-git clone https://github.com/milos85vasic/Distributed-Gradle-Building
-cd Distributed-Gradle-Building
-./setup_master.sh
-```
+#### **Option 1: Bash Implementation** (5-minute setup)
+1. **Clone and Set Up:**
+   ```bash
+   git clone https://github.com/milos85vasic/Distributed-Gradle-Building
+   cd Distributed-Gradle-Building
+   ./setup_master.sh /path/to/gradle/project
+   ```
 
-### 2. Configure Workers
-```bash
-# On each worker machine
-./setup_worker.sh
-```
+2. **Configure Workers:**
+   ```bash
+   # On each worker machine
+   ./setup_worker.sh /path/to/gradle/project
+   ```
 
-### 3. Start Building
-```bash
-./sync_and_build.sh --distributed
-```
+3. **Start Building:**
+   ```bash
+   ./sync_and_build.sh assemble
+   ```
 
-That's it! Your builds will now be distributed across all available workers automatically.
+#### **Option 2: Go Implementation** (Enterprise scale)
+1. **Deploy Services:**
+   ```bash
+   git clone https://github.com/milos85vasic/Distributed-Gradle-Building
+   cd Distributed-Gradle-Building/go
+   go mod tidy
+   # See docs/GO_DEPLOYMENT.md for detailed setup
+   ```
+
+2. **Use REST API:**
+   ```bash
+   # Submit build via API
+   curl -X POST http://localhost:8080/api/builds \
+     -H "Content-Type: application/json" \
+     -d '{"project": "/path/to/project", "tasks": ["assemble"]}'
+   ```
+
+📖 **Need help?** → [Complete Documentation](/docs) | [Setup Guide](/docs/setup-guide) | [Video Tutorials](/video-courses)
 
 ## 📊 Performance Metrics
 
@@ -115,11 +133,22 @@ That's it! Your builds will now be distributed across all available workers auto
 
 ## 🎯 What's Next?
 
-- [Watch the beginner video tutorial](/video-courses/beginner)
-- [Read the complete documentation](/docs)
-- [Try the live demo](https://demo.distributed-gradle-building.com)
-- [Join our community on GitHub](https://github.com/milos85vasic/Distributed-Gradle-Building/discussions)
+### 📚 **Learn & Explore**
+- 📖 **[Complete Documentation](/docs)** - Comprehensive guides and references
+- 🎥 **[Video Courses](/video-courses)** - Beginner to advanced tutorials
+- 📊 **[Performance Guide](/docs/performance)** - Optimization and metrics
+- 🔧 **[Advanced Configuration](/docs/advanced-config)** - Production deployment
+
+### 🚀 **Try It Yourself**
+- 🏃 **[5-Minute Quick Start](/tutorials/5-minute-quick-start)** - Get running immediately
+- 🌐 **[Live Demo](https://demo.distributed-gradle-building.com)** - Try it online
+- 💻 **[Download Source](https://github.com/milos85vasic/Distributed-Gradle-Building)** - Get the code
+
+### 🌍 **Connect & Contribute**
+- 💬 **[GitHub Discussions](https://github.com/milos85vasic/Distributed-Gradle-Building/discussions)** - Join the community
+- 🐛 **[Report Issues](https://github.com/milos85vasic/Distributed-Gradle-Building/issues)** - Help us improve
+- 🤝 **[Contribute](https://github.com/milos85vasic/Distributed-Gradle-Building/blob/main/CONTRIBUTING.md)** - Submit pull requests
 
 ---
 
-**Ready to accelerate your builds?** [Start building faster today!]({{ .Site.Params.demoURL }})
+**🚀 Ready to accelerate your builds?** [Start building faster today!]({{ .Site.Params.demoURL }})

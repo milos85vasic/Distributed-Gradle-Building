@@ -153,6 +153,21 @@ assert_not_equals() {
     fi
 }
 
+assert_not_empty() {
+    local value="$1"
+    local message="${2:-Value should not be empty}"
+    
+    ((TESTS_TOTAL++))
+    
+    if [[ -n "$value" ]]; then
+        log_success "$message"
+        return 0
+    else
+        log_error "$message"
+        return 1
+    fi
+}
+
 assert_true() {
     local condition="$1"
     local message="${2:-Expected true, got '$condition'}"
@@ -228,13 +243,14 @@ assert_command_success() {
     fi
 }
 
-assert_command_failure() {
-    local command="$1"
-    local message="${2:-Command should fail: $command}"
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    local message="${3:-Expected '$haystack' to contain '$needle'}"
     
     ((TESTS_TOTAL++))
     
-    if ! eval "$command" >/dev/null 2>&1; then
+    if [[ "$haystack" == *"$needle"* ]]; then
         log_success "$message"
         return 0
     else

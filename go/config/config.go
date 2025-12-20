@@ -249,7 +249,7 @@ func LoadMonitorConfig(configPath string) (*types.MonitorConfig, error) {
 }
 
 // loadConfigFromFile loads configuration from JSON file
-func loadConfigFromFile(configPath string, config interface{}) error {
+func loadConfigFromFile(configPath string, config any) error {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil // Config file is optional
 	}
@@ -275,7 +275,7 @@ func generateWorkerID() string {
 }
 
 // SaveConfig saves configuration to JSON file
-func SaveConfig(configPath string, config interface{}) error {
+func SaveConfig(configPath string, config any) error {
 	file, err := os.Create(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)

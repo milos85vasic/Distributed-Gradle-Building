@@ -806,11 +806,11 @@ func (ml *MLService) trainScalingPatterns() {
 }
 
 // GetStatistics returns ML service statistics
-func (ml *MLService) GetStatistics() map[string]interface{} {
+func (ml *MLService) GetStatistics() map[string]any {
 	ml.mutex.RLock()
 	defer ml.mutex.RUnlock()
 
-	stats := make(map[string]interface{})
+	stats := make(map[string]any)
 
 	stats["total_build_records"] = len(ml.BuildHistory)
 	stats["total_worker_metrics"] = len(ml.WorkerMetrics)
@@ -821,7 +821,7 @@ func (ml *MLService) GetStatistics() map[string]interface{} {
 		stats["newest_build"] = ml.BuildHistory[len(ml.BuildHistory)-1].StartTime
 	}
 
-	stats["models_trained"] = map[string]interface{}{
+	stats["models_trained"] = map[string]any{
 		"build_time": !ml.Models.BuildTimePredictor.LastTrained.IsZero(),
 		"resource":   !ml.Models.ResourcePredictor.LastTrained.IsZero(),
 		"scaling":    !ml.Models.ScalingPredictor.LastTrained.IsZero(),
@@ -833,11 +833,11 @@ func (ml *MLService) GetStatistics() map[string]interface{} {
 }
 
 // GetLearningStats returns continuous learning statistics
-func (ml *MLService) GetLearningStats() map[string]interface{} {
+func (ml *MLService) GetLearningStats() map[string]any {
 	ml.mutex.RLock()
 	defer ml.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"config": ml.ContinuousLearning,
 		"stats":  ml.LearningStats,
 	}
@@ -992,9 +992,9 @@ func (ml *MLService) collectFromMonitor() {
 	defer resp.Body.Close()
 
 	var monitorData struct {
-		Workers map[string]interface{} `json:"workers"`
-		Builds  map[string]interface{} `json:"builds"`
-		System  map[string]interface{} `json:"system"`
+		Workers map[string]any `json:"workers"`
+		Builds  map[string]any `json:"builds"`
+		System  map[string]any `json:"system"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&monitorData); err != nil {
@@ -1004,7 +1004,7 @@ func (ml *MLService) collectFromMonitor() {
 
 	// Process worker metrics
 	for workerID, workerData := range monitorData.Workers {
-		if workerMap, ok := workerData.(map[string]interface{}); ok {
+		if workerMap, ok := workerData.(map[string]any); ok {
 			metric := WorkerMetric{
 				WorkerID:  workerID,
 				Timestamp: time.Now(),
@@ -1031,7 +1031,7 @@ func (ml *MLService) collectFromMonitor() {
 
 	// Process build data
 	for buildID, buildData := range monitorData.Builds {
-		if buildMap, ok := buildData.(map[string]interface{}); ok {
+		if buildMap, ok := buildData.(map[string]any); ok {
 			build := Build{
 				ID: buildID,
 			}
@@ -1068,7 +1068,7 @@ func (ml *MLService) collectFromMonitor() {
 				build.CacheHitRate = cacheHitRate
 			}
 
-			if resourceUsage, ok := buildMap["resource_usage"].(map[string]interface{}); ok {
+			if resourceUsage, ok := buildMap["resource_usage"].(map[string]any); ok {
 				if cpu, ok := resourceUsage["cpu_percent"].(float64); ok {
 					build.CPUUsage = cpu
 				}

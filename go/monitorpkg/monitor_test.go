@@ -228,7 +228,7 @@ func TestTriggerAlert(t *testing.T) {
 	config := types.MonitorConfig{}
 	monitor := NewMonitor(config)
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"build_id": "build-123",
 		"reason":   "timeout",
 	}
@@ -464,7 +464,7 @@ func TestHandleHealth(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	var health map[string]interface{}
+	var health map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&health); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}

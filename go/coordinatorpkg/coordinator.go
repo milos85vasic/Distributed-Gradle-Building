@@ -21,7 +21,7 @@ type Worker struct {
 	Port     int
 	Status   string
 	LastPing time.Time
-	Metadata map[string]interface{}
+	Metadata map[string]any
 }
 
 // BuildCoordinator manages distributed builds across workers
@@ -90,7 +90,7 @@ func (bc *BuildCoordinator) RegisterWorkerRPC(args *RegisterWorkerArgs, reply *R
 		Port:     args.Port,
 		Status:   "idle",
 		LastPing: time.Now(),
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"capabilities": args.Capabilities,
 		},
 	}
@@ -283,7 +283,7 @@ func (bc *BuildCoordinator) handleWorkers(w http.ResponseWriter, r *http.Request
 
 // handleStatus handles status requests
 func (bc *BuildCoordinator) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	status := map[string]interface{}{
+	status := map[string]any{
 		"workers": len(bc.workers),
 		"queue":   len(bc.buildQueue),
 		"builds":  len(bc.builds),

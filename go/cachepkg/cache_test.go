@@ -280,7 +280,7 @@ func TestCacheServer_HandleCacheRequests(t *testing.T) {
 	server := NewCacheServer(config)
 
 	// Test PUT request
-	putData := map[string]interface{}{
+	putData := map[string]any{
 		"data": []byte("test data"),
 		"metadata": map[string]string{
 			"project": "test",
@@ -414,7 +414,7 @@ func TestCacheServer_HandleHealth(t *testing.T) {
 		t.Errorf("Expected status 200 for health, got %d", w.Code)
 	}
 
-	var health map[string]interface{}
+	var health map[string]any
 	err = json.NewDecoder(w.Body).Decode(&health)
 	if err != nil {
 		t.Fatalf("Failed to decode health response: %v", err)

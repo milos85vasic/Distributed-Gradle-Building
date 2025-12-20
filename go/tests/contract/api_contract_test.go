@@ -17,9 +17,9 @@ import (
 type APIContractTest struct {
 	Method       string
 	Path         string
-	Schema       interface{}
+	Schema       any
 	Headers      map[string]string
-	RequestBody  interface{}
+	RequestBody  any
 	ExpectedCode int
 }
 
@@ -42,8 +42,8 @@ type APIEndpoint struct {
 	Method         string
 	Path           string
 	Description    string
-	RequestSchema  interface{}
-	ResponseSchema interface{}
+	RequestSchema  any
+	ResponseSchema any
 	StatusCode     int
 }
 
@@ -155,7 +155,7 @@ func testSubmitBuildContract(t *testing.T, coordinator *coordinatorpkg.BuildCoor
 
 	// Simulate success response
 	rr.WriteHeader(http.StatusOK)
-	response := map[string]interface{}{
+	response := map[string]any{
 		"build_id": buildID,
 		"status":   "queued",
 		"message":  "Build submitted successfully",
@@ -169,8 +169,8 @@ func testGetBuildsContract(t *testing.T, coordinator *coordinatorpkg.BuildCoordi
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
-		"builds": []interface{}{
+	response := map[string]any{
+		"builds": []any{
 			map[string]string{
 				"id":     "test-build-1",
 				"status": "running",
@@ -187,9 +187,9 @@ func testGetWorkersContract(t *testing.T, coordinator *coordinatorpkg.BuildCoord
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
-		"workers": []interface{}{
-			map[string]interface{}{
+	response := map[string]any{
+		"workers": []any{
+			map[string]any{
 				"id":     "worker-1",
 				"status": "active",
 				"load":   0.5,
@@ -206,7 +206,7 @@ func testHealthCheckContract(t *testing.T, coordinator *coordinatorpkg.BuildCoor
 	rr.Header().Set("Content-Type", "application/json")
 	rr.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"version":   "1.0.0",

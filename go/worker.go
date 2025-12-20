@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -96,6 +97,7 @@ type WorkerService struct {
 	plugins    []BuildPlugin
 	builds     chan BuildRequestCoordinator
 	httpServer *http.Server
+	shutdown   chan struct{}
 	mutex      sync.RWMutex
 }
 
@@ -179,9 +181,10 @@ func NewWorkerService(config *WorkerConfig) *WorkerService {
 	worker := NewWorkerNode(config)
 
 	service := &WorkerService{
-		worker: worker,
-		config: config,
-		builds: make(chan BuildRequestCoordinator, 10),
+		worker:   worker,
+		config:   config,
+		builds:   make(chan BuildRequestCoordinator, 10),
+		shutdown: make(chan struct{}),
 	}
 
 	// Load plugins
@@ -276,7 +279,7 @@ func (ws *WorkerService) executeBuild(request BuildRequestCoordinator) error {
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("GRADLE_USER_HOME=%s", gradleHome))
 	if request.CacheEnabled {
-		env = append(env, fmt.Sprintf("GRADLE_CACHE_ENABLED=true"))
+		env = append(env, "GRADLE_CACHE_ENABLED=true")
 		env = append(env, fmt.Sprintf("GRADLE_CACHE_DIR=%s", ws.config.CacheDir))
 	}
 	cmd.Env = env
@@ -473,6 +476,19 @@ func loadWorkerConfig(filename string) (*WorkerConfig, error) {
 	}
 
 	return &config, nil
+}
+
+// Shutdown gracefully shuts down the worker service
+func (ws *WorkerService) Shutdown() error {
+	close(ws.shutdown)
+
+	if ws.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return ws.httpServer.Shutdown(ctx)
+	}
+
+	return nil
 }
 
 // Main function removed - use worker/main.go instead

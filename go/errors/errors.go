@@ -42,12 +42,12 @@ const (
 
 // APIError represents a structured API error
 type APIError struct {
-	Code       ErrorCode              `json:"code"`
-	Message    string                 `json:"message"`
-	Details    map[string]interface{} `json:"details,omitempty"`
-	RequestID  string                 `json:"request_id,omitempty"`
-	Timestamp  int64                  `json:"timestamp"`
-	HTTPStatus int                    `json:"-"`
+	Code       ErrorCode      `json:"code"`
+	Message    string         `json:"message"`
+	Details    map[string]any `json:"details,omitempty"`
+	RequestID  string         `json:"request_id,omitempty"`
+	Timestamp  int64          `json:"timestamp"`
+	HTTPStatus int            `json:"-"`
 }
 
 // Error implements the error interface
@@ -65,9 +65,9 @@ func (e *APIError) WithRequest(requestID string) *APIError {
 }
 
 // WithDetail adds detail to error
-func (e *APIError) WithDetail(key string, value interface{}) *APIError {
+func (e *APIError) WithDetail(key string, value any) *APIError {
 	if e.Details == nil {
-		e.Details = make(map[string]interface{})
+		e.Details = make(map[string]any)
 	}
 	e.Details[key] = value
 	return e

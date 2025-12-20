@@ -35,7 +35,7 @@ func TestRegisterWorker(t *testing.T) {
 		Port:     8080,
 		Status:   "idle",
 		LastPing: time.Now(),
-		Metadata: map[string]interface{}{"capabilities": []string{"build", "test"}},
+		Metadata: map[string]any{"capabilities": []string{"build", "test"}},
 	}
 
 	err := coordinator.RegisterWorker(worker)
@@ -292,7 +292,7 @@ func TestHandleHealth(t *testing.T) {
 
 func TestHandleBuilds_POST(t *testing.T) {
 	coordinator := NewBuildCoordinator(5)
-	requestBody := map[string]interface{}{
+	requestBody := map[string]any{
 		"project_path":  "/test/project",
 		"task_name":     "build",
 		"cache_enabled": true,
@@ -452,7 +452,7 @@ func TestHandleStatus(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	var status map[string]interface{}
+	var status map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&status); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}

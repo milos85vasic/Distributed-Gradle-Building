@@ -77,13 +77,13 @@ type ResourceMetrics struct {
 
 // Alert represents a system alert
 type Alert struct {
-	ID        string                 `json:"id"`
-	Type      string                 `json:"type"`
-	Severity  string                 `json:"severity"`
-	Message   string                 `json:"message"`
-	Timestamp time.Time              `json:"timestamp"`
-	Resolved  bool                   `json:"resolved"`
-	Data      map[string]interface{} `json:"data"`
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Severity  string         `json:"severity"`
+	Message   string         `json:"message"`
+	Timestamp time.Time      `json:"timestamp"`
+	Resolved  bool           `json:"resolved"`
+	Data      map[string]any `json:"data"`
 }
 
 // NewMonitor creates a new monitoring service
@@ -183,7 +183,7 @@ func (m *Monitor) UpdateWorkerMetrics(workerID, status string, activeBuilds int,
 }
 
 // TriggerAlert triggers a new alert
-func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[string]interface{}) {
+func (m *Monitor) TriggerAlert(alertType, severity, message string, data map[string]any) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -366,11 +366,11 @@ func (m *Monitor) detectResourceUsageAnomaly(resources ResourceMetrics) bool {
 }
 
 // GetAnomalyStatistics returns statistics about detected anomalies
-func (m *Monitor) GetAnomalyStatistics() map[string]interface{} {
+func (m *Monitor) GetAnomalyStatistics() map[string]any {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	stats := make(map[string]interface{})
+	stats := make(map[string]any)
 
 	// Count anomalies by type
 	anomalyCounts := make(map[string]int)
@@ -489,7 +489,7 @@ func (m *Monitor) handleAlerts(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth handles health check requests (exported for testing)
 func (m *Monitor) handleHealth(w http.ResponseWriter, r *http.Request) {
-	health := map[string]interface{}{
+	health := map[string]any{
 		"status":    "healthy",
 		"timestamp": time.Now(),
 		"version":   "1.0.0",
@@ -538,7 +538,7 @@ func (m *Monitor) checkWorkerTimeouts() {
 			if !hasAlert {
 				m.TriggerAlert("worker_timeout", "warning",
 					fmt.Sprintf("Worker %s has not been seen for %v", workerID, now.Sub(metrics.LastSeen)),
-					map[string]interface{}{
+					map[string]any{
 						"worker_id": workerID,
 						"last_seen": metrics.LastSeen,
 					})
@@ -560,7 +560,7 @@ func (m *Monitor) checkAlertThresholds() {
 		if threshold, exists := m.Config.AlertThresholds["build_failure_rate"]; exists && failureRate > threshold {
 			m.TriggerAlert("high_failure_rate", "critical",
 				fmt.Sprintf("Build failure rate %.2f%% exceeds threshold %.2f%%", failureRate*100, threshold*100),
-				map[string]interface{}{
+				map[string]any{
 					"failure_rate": failureRate,
 					"threshold":    threshold,
 				})
@@ -571,7 +571,7 @@ func (m *Monitor) checkAlertThresholds() {
 	if threshold, exists := m.Config.AlertThresholds["queue_length"]; exists && int64(m.Metrics.QueueLength) > int64(threshold) {
 		m.TriggerAlert("queue_length", "warning",
 			fmt.Sprintf("Build queue length %d exceeds threshold %d", m.Metrics.QueueLength, int(threshold)),
-			map[string]interface{}{
+			map[string]any{
 				"queue_length": m.Metrics.QueueLength,
 				"threshold":    threshold,
 			})

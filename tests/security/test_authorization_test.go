@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,7 +19,7 @@ import (
 // TestRoleBasedAccessControl tests RBAC implementation
 func TestRoleBasedAccessControl(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "rbac-test")
+	testDir, err := os.MkdirTemp("", "rbac-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestRoleBasedAccessControl(t *testing.T) {
 // TestResourceLevelPermissions tests resource-level access control
 func TestResourceLevelPermissions(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "resource-permissions-test")
+	testDir, err := os.MkdirTemp("", "resource-permissions-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestResourceLevelPermissions(t *testing.T) {
 // TestAPIEndpointAuthorization tests API endpoint authorization
 func TestAPIEndpointAuthorization(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "api-authorization-test")
+	testDir, err := os.MkdirTemp("", "api-authorization-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}

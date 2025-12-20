@@ -432,7 +432,7 @@ func TestSecurityHeaders(t *testing.T) {
 // Test secure logging practices
 func TestSecureLoggingPractices(t *testing.T) {
 	// Test that sensitive data is not logged
-	sensitiveData := map[string]interface{}{
+	sensitiveData := map[string]any{
 		"username": "testuser",
 		"password": "secret123",
 		"token":    "jwt-token-secret",
@@ -441,7 +441,7 @@ func TestSecureLoggingPractices(t *testing.T) {
 
 	// Mock logger that captures logs
 	var loggedMessages []string
-	logger := func(format string, args ...interface{}) {
+	logger := func(format string, args ...any) {
 		message := fmt.Sprintf(format, args...)
 		loggedMessages = append(loggedMessages, message)
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,7 +18,7 @@ import (
 // TestDistributedBuild tests the distributed build process across multiple workers
 func TestDistributedBuild(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "distributed-build-test")
+	testDir, err := os.MkdirTemp("", "distributed-build-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -104,16 +103,16 @@ func TestDistributedBuild(t *testing.T) {
 func testTaskDistribution(t *testing.T, coordURL string, workerURLs []string, projectDir string) {
 	// Create build request with multiple tasks
 	buildRequest := map[string]interface{}{
-		"project_name":   "distributed-test-project",
-		"build_type":     "gradle",
-		"tasks":          []string{"compileJava", "processResources", "test", "javadoc", "jar"},
+		"project_name":    "distributed-test-project",
+		"build_type":      "gradle",
+		"tasks":           []string{"compileJava", "processResources", "test", "javadoc", "jar"},
 		"source_location": projectDir,
 		"environment": map[string]interface{}{
-			"java_home":  "/usr/lib/jvm/default-java",
+			"java_home":   "/usr/lib/jvm/default-java",
 			"gradle_home": "/usr/local/gradle",
 		},
 		"distribution": map[string]interface{}{
-			"strategy": "round-robin",
+			"strategy":       "round-robin",
 			"parallel_tasks": 3,
 		},
 	}
@@ -244,7 +243,7 @@ func testWorkerFailureHandling(t *testing.T, coordURL string, workerURLs []strin
 	}
 
 	status := statusResp["status"].(string)
-	
+
 	// Build should either complete (with retries) or fail gracefully
 	if status != "completed" && status != "failed" {
 		t.Errorf("Unexpected build status: %s", status)
@@ -289,11 +288,11 @@ func testLoadBalancing(t *testing.T, coordURL string, workerURLs []string, proje
 	}
 
 	workers := loadResp["workers"].([]interface{})
-	
+
 	// Verify load is distributed (not all tasks on one worker)
 	maxTasks := 0
 	totalTasks := 0
-	
+
 	for _, worker := range workers {
 		workerMap := worker.(map[string]interface{})
 		taskCount := int(workerMap["active_tasks"].(float64))
@@ -327,7 +326,7 @@ func testConcurrentBuilds(t *testing.T, coordURL string, workerURLs []string, pr
 	// Wait for all builds to complete
 	timeout := time.After(15 * time.Second)
 	completed := 0
-	
+
 	for completed < 3 {
 		select {
 		case <-done:
@@ -415,7 +414,7 @@ task jar {
     }
 }
 `
-	if err := ioutil.WriteFile(filepath.Join(projectDir, "build.gradle"), []byte(buildGradle), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "build.gradle"), []byte(buildGradle), 0644); err != nil {
 		return err
 	}
 
@@ -432,17 +431,17 @@ public class Hello {
         System.out.println("Hello World!");
     }
 }`
-	
-	return ioutil.WriteFile(filepath.Join(srcDir, "Hello.java"), []byte(helloJava), 0644)
+
+	return os.WriteFile(filepath.Join(srcDir, "Hello.java"), []byte(helloJava), 0644)
 }
 
 func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 	router := mux.NewRouter()
-	
+
 	// Track builds and tasks
 	builds := make(map[string]map[string]interface{})
 	tasks := make(map[string]map[string]interface{})
-	
+
 	// Build submission endpoint
 	router.HandleFunc("/api/builds", func(w http.ResponseWriter, r *http.Request) {
 		var buildRequest map[string]interface{}
@@ -453,25 +452,25 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 
 		buildID := fmt.Sprintf("build-%d", time.Now().UnixNano())
 		builds[buildID] = buildRequest
-		
+
 		// Create tasks based on request
 		taskList := buildRequest["tasks"].([]interface{})
 		for i, task := range taskList {
 			taskID := fmt.Sprintf("task-%d", i+1)
 			tasks[taskID] = map[string]interface{}{
-				"id": taskID,
-				"name": task,
-				"status": "pending",
+				"id":       taskID,
+				"name":     task,
+				"status":   "pending",
 				"build_id": buildID,
 			}
 		}
-		
+
 		response := map[string]interface{}{
-			"build_id": buildID,
-			"status": "accepted",
+			"build_id":   buildID,
+			"status":     "accepted",
 			"task_count": len(taskList),
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(response)
@@ -481,19 +480,19 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 	router.HandleFunc("/api/builds/{buildId}/status", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		buildID := vars["buildId"]
-		
+
 		if _, ok := builds[buildID]; !ok {
 			http.Error(w, "Build not found", http.StatusNotFound)
 			return
 		}
-		
+
 		// Simulate build progress
 		response := map[string]interface{}{
 			"build_id": buildID,
-			"status": "completed",
+			"status":   "completed",
 			"progress": 100,
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}).Methods("GET")
@@ -502,50 +501,50 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 	router.HandleFunc("/api/builds/{buildId}/tasks", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		buildID := vars["buildId"]
-		
+
 		// Return mock tasks with assigned workers
 		buildTasks := []interface{}{
 			map[string]interface{}{
-				"id": "task-1",
-				"name": "compileJava",
-				"status": "completed",
+				"id":              "task-1",
+				"name":            "compileJava",
+				"status":          "completed",
 				"assigned_worker": "worker-1",
-				"build_id": buildID,
+				"build_id":        buildID,
 			},
 			map[string]interface{}{
-				"id": "task-2", 
-				"name": "processResources",
-				"status": "completed",
+				"id":              "task-2",
+				"name":            "processResources",
+				"status":          "completed",
 				"assigned_worker": "worker-2",
-				"build_id": buildID,
+				"build_id":        buildID,
 			},
 			map[string]interface{}{
-				"id": "task-3",
-				"name": "test",
-				"status": "completed", 
+				"id":              "task-3",
+				"name":            "test",
+				"status":          "completed",
 				"assigned_worker": "worker-3",
-				"build_id": buildID,
+				"build_id":        buildID,
 			},
 			map[string]interface{}{
-				"id": "task-4",
-				"name": "javadoc",
-				"status": "completed",
+				"id":              "task-4",
+				"name":            "javadoc",
+				"status":          "completed",
 				"assigned_worker": "worker-1",
-				"build_id": buildID,
+				"build_id":        buildID,
 			},
 			map[string]interface{}{
-				"id": "task-5",
-				"name": "jar",
-				"status": "completed",
+				"id":              "task-5",
+				"name":            "jar",
+				"status":          "completed",
 				"assigned_worker": "worker-2",
-				"build_id": buildID,
+				"build_id":        buildID,
 			},
 		}
-		
+
 		response := map[string]interface{}{
 			"tasks": buildTasks,
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}).Methods("GET")
@@ -554,16 +553,16 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 	router.HandleFunc("/api/builds/{buildId}/results", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		buildID := vars["buildId"]
-		
+
 		response := map[string]interface{}{
 			"build_id": buildID,
-			"status": "completed",
+			"status":   "completed",
 			"artifacts": []interface{}{
 				map[string]interface{}{"name": "build.log", "size": 1024},
 				map[string]interface{}{"name": "classes", "size": 2048},
 			},
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}).Methods("GET")
@@ -575,11 +574,11 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 			map[string]interface{}{"id": "worker-2", "active_tasks": 1},
 			map[string]interface{}{"id": "worker-3", "active_tasks": 3},
 		}
-		
+
 		response := map[string]interface{}{
 			"workers": workers,
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}).Methods("GET")
@@ -589,11 +588,11 @@ func setupDistributedBuildCoordinator(t *testing.T) http.Handler {
 
 func setupDistributedBuildWorkers(t *testing.T, count int) []http.Handler {
 	workers := make([]http.Handler, count)
-	
+
 	for i := 0; i < count; i++ {
 		router := mux.NewRouter()
 		workerID := fmt.Sprintf("worker-%d", i+1)
-		
+
 		// Task execution endpoint
 		router.HandleFunc("/api/tasks/execute", func(w http.ResponseWriter, r *http.Request) {
 			var taskRequest map[string]interface{}
@@ -601,7 +600,7 @@ func setupDistributedBuildWorkers(t *testing.T, count int) []http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			
+
 			response := map[string]interface{}{
 				"task_id":   "task-" + fmt.Sprintf("%d", time.Now().UnixNano()),
 				"worker_id": workerID,
@@ -609,25 +608,25 @@ func setupDistributedBuildWorkers(t *testing.T, count int) []http.Handler {
 				"duration":  3000,
 				"artifacts": []string{"build.log", "output"},
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
 		}).Methods("POST")
 
 		workers[i] = router
 	}
-	
+
 	return workers
 }
 
 func submitTestBuild(t *testing.T, coordURL string, projectDir string, projectName string) string {
 	buildRequest := map[string]interface{}{
-		"project_name":   projectName,
-		"build_type":     "gradle",
-		"tasks":          []string{"compileJava", "test"},
+		"project_name":    projectName,
+		"build_type":      "gradle",
+		"tasks":           []string{"compileJava", "test"},
 		"source_location": projectDir,
 		"environment": map[string]interface{}{
-			"java_home":  "/usr/lib/jvm/default-java",
+			"java_home":   "/usr/lib/jvm/default-java",
 			"gradle_home": "/usr/local/gradle",
 		},
 	}

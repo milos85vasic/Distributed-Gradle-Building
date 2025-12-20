@@ -112,14 +112,14 @@ type SystemMetrics struct {
 
 // Alert represents a system alert
 type Alert struct {
-	ID         string                 `json:"id"`
-	Severity   string                 `json:"severity"`
-	Message    string                 `json:"message"`
-	Source     string                 `json:"source"`
-	Timestamp  time.Time              `json:"timestamp"`
-	Metadata   map[string]interface{} `json:"metadata"`
-	Resolved   bool                   `json:"resolved"`
-	ResolvedAt *time.Time             `json:"resolved_at,omitempty"`
+	ID         string         `json:"id"`
+	Severity   string         `json:"severity"`
+	Message    string         `json:"message"`
+	Source     string         `json:"source"`
+	Timestamp  time.Time      `json:"timestamp"`
+	Metadata   map[string]any `json:"metadata"`
+	Resolved   bool           `json:"resolved"`
+	ResolvedAt *time.Time     `json:"resolved_at,omitempty"`
 }
 
 // PerformanceReport contains system performance analysis
@@ -320,7 +320,7 @@ func (m *Monitor) checkAlerts() {
 			Message:   "More than 50% of workers are offline",
 			Source:    "monitor",
 			Timestamp: time.Now(),
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"active_workers": m.metrics.ActiveWorkers,
 				"total_workers":  m.metrics.TotalWorkers,
 			},
@@ -339,7 +339,7 @@ func (m *Monitor) checkAlerts() {
 				Message:   fmt.Sprintf("High build failure rate: %.2f%%", failureRate*100),
 				Source:    "monitor",
 				Timestamp: time.Now(),
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"failure_rate":  failureRate,
 					"failed_builds": m.metrics.FailedBuilds,
 					"total_builds":  m.metrics.TotalBuilds,
@@ -359,7 +359,7 @@ func (m *Monitor) checkAlerts() {
 				Message:   fmt.Sprintf("Worker %s has high response time: %v", worker.ID, worker.ResponseTime),
 				Source:    "monitor",
 				Timestamp: time.Now(),
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"worker_id":     worker.ID,
 					"response_time": worker.ResponseTime.String(),
 				},
@@ -545,7 +545,7 @@ func (m *Monitor) generateSummary(builds map[string]*BuildStats) SummaryStats {
 }
 
 // generateRecommendations creates optimization recommendations
-func (m *Monitor) generateRecommendations(summary SummaryStats, workers map[string]*WorkerStats) []string {
+func (m *Monitor) generateRecommendations(summary SummaryStats, _ map[string]*WorkerStats) []string {
 	recommendations := []string{}
 
 	// Low success rate recommendation
@@ -684,32 +684,11 @@ func (m *Monitor) handleRegisterRequest(w http.ResponseWriter, r *http.Request) 
 
 func (m *Monitor) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"status":  "healthy",
 		"uptime":  time.Since(m.startTime).String(),
 		"metrics": m.metrics,
 	})
-}
-
-func monitorMain() {
-	// Load configuration
-	configFile := "monitor_config.json"
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
-	}
-
-	config, err := loadMonitorConfig(configFile)
-	if err != nil {
-		log.Fatalf("Failed to load monitor config: %v", err)
-	}
-
-	// Create and start monitor
-	monitor := NewMonitor(config)
-
-	log.Printf("Starting monitor on %s:%d", config.Host, config.Port)
-	if err := monitor.Start(); err != nil {
-		log.Fatalf("Failed to start monitor: %v", err)
-	}
 }
 
 // loadMonitorConfig loads monitor configuration from file

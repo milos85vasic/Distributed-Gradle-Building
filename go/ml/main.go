@@ -1,49 +1,111 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"distributed-gradle-building/ml/service"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type MLServer struct {
-	mlService *service.MLService
-	port      int
+	mlService  *service.MLService
+	port       int
+	httpServer *http.Server
+	shutdown   chan struct{}
+
+	// Prometheus metrics
+	predictionsTotal    prometheus.Counter
+	predictionsDuration prometheus.Histogram
+	trainingTotal       prometheus.Counter
 }
 
 func NewMLServer(port int) *MLServer {
+	// Create Prometheus metrics
+	predictionsTotal := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "ml_predictions_total",
+			Help: "Total number of predictions made by ML service",
+		},
+	)
+
+	predictionsDuration := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "ml_prediction_duration_seconds",
+			Help:    "Duration of prediction requests in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	trainingTotal := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "ml_training_total",
+			Help: "Total number of model training sessions",
+		},
+	)
+
+	// Register metrics
+	prometheus.MustRegister(predictionsTotal, predictionsDuration, trainingTotal)
+
 	return &MLServer{
-		mlService: service.NewMLService(),
-		port:      port,
+		mlService:           service.NewMLService(),
+		port:                port,
+		shutdown:            make(chan struct{}),
+		predictionsTotal:    predictionsTotal,
+		predictionsDuration: predictionsDuration,
+		trainingTotal:       trainingTotal,
 	}
 }
 
 func (s *MLServer) Start() error {
-	http.HandleFunc("/health", s.handleHealth)
-	http.HandleFunc("/api/predict", s.handlePredict)
-	http.HandleFunc("/api/train", s.handleTrain)
-	http.HandleFunc("/api/scaling", s.handleScalingAdvice)
-	http.HandleFunc("/api/stats", s.handleStats)
-	http.HandleFunc("/api/learning", s.handleLearningStats)
-	http.HandleFunc("/api/rollback", s.handleRollback)
-	http.HandleFunc("/api/export", s.handleExport)
-	http.HandleFunc("/api/import", s.handleImport)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", s.handleHealth)
+	mux.HandleFunc("/api/predict", s.handlePredict)
+	mux.HandleFunc("/api/train", s.handleTrain)
+	mux.HandleFunc("/api/scaling", s.handleScalingAdvice)
+	mux.HandleFunc("/api/stats", s.handleStats)
+	mux.HandleFunc("/api/learning", s.handleLearningStats)
+	mux.HandleFunc("/api/rollback", s.handleRollback)
+	mux.HandleFunc("/api/export", s.handleExport)
+	mux.HandleFunc("/api/import", s.handleImport)
+	mux.Handle("/metrics", promhttp.Handler())
+
+	s.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.port),
+		Handler: mux,
+	}
 
 	log.Printf("ML Service starting on port %d", s.port)
-	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), nil)
+	return s.httpServer.ListenAndServe()
 }
 
 func (s *MLServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+
+	stats := s.mlService.GetLearningStats()
+	health := map[string]any{
+		"status":    "healthy",
+		"service":   "ml",
+		"version":   "1.0.0",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"stats":     stats,
+	}
+
+	json.NewEncoder(w).Encode(health)
 }
 
 func (s *MLServer) handlePredict(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -62,6 +124,10 @@ func (s *MLServer) handlePredict(w http.ResponseWriter, r *http.Request) {
 
 	prediction := s.mlService.GetBuildInsights(req.ProjectPath, req.TaskName, req.BuildOptions)
 
+	// Record metrics
+	s.predictionsTotal.Inc()
+	s.predictionsDuration.Observe(time.Since(start).Seconds())
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(prediction)
 }
@@ -76,6 +142,9 @@ func (s *MLServer) handleTrain(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Training failed: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	// Record training metric
+	s.trainingTotal.Inc()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "training_completed"})
@@ -279,30 +348,62 @@ func (s *MLServer) AddTestData() {
 }
 
 func main() {
-	port := 8082 // Different port from coordinator (8080) and monitor (8081)
+	port := 8085
+	if len(os.Args) > 1 {
+		if p, err := strconv.Atoi(os.Args[1]); err == nil {
+			port = p
+		}
+	}
 
 	server := NewMLServer(port)
 
-	// Add test data for demonstration
-	server.AddTestData()
-
-	// Start continuous learning
-	server.mlService.StartContinuousLearning()
-
-	log.Printf("Starting ML Service on port %d", port)
-	log.Printf("Endpoints:")
+	log.Printf("Distributed Gradle Building - ML Service")
+	log.Printf("Version: 1.0.0")
+	log.Printf("Listening on port %d", port)
+	log.Printf("Available endpoints:")
 	log.Printf("  GET  /health - Health check")
-	log.Printf("  POST /api/predict - Get build predictions")
+	log.Printf("  POST /api/predict - Predict build time and resources")
 	log.Printf("  POST /api/train - Train ML models")
 	log.Printf("  GET  /api/scaling - Get scaling advice")
-	log.Printf("  GET  /api/stats - Get ML service statistics")
-	log.Printf("  GET  /api/learning - Get continuous learning statistics")
-	log.Printf("  POST /api/rollback - Rollback to model version")
+	log.Printf("  GET  /api/stats - Get service statistics")
+	log.Printf("  GET  /api/learning - Get learning statistics")
+	log.Printf("  POST /api/rollback - Rollback to previous model")
 	log.Printf("  GET  /api/export - Export ML data")
 	log.Printf("  POST /api/import - Import ML data")
 	log.Printf("Continuous learning: ENABLED")
 
-	if err := server.Start(); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	// Start server in goroutine
+	go func() {
+		if err := server.Start(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Setup graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	log.Printf("Received signal %v, shutting down ML service...", sig)
+
+	// Graceful shutdown
+	if err := server.Shutdown(); err != nil {
+		log.Printf("Error during ML service shutdown: %v", err)
 	}
+
+	log.Printf("ML service shutdown complete")
+}
+
+// Shutdown gracefully shuts down the ML server
+func (s *MLServer) Shutdown() error {
+	close(s.shutdown)
+
+	if s.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return s.httpServer.Shutdown(ctx)
+	}
+
+	return nil
 }

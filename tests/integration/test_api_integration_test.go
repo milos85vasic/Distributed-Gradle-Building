@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,7 +17,7 @@ import (
 // TestAPIIntegration tests the API integration between all services
 func TestAPIIntegration(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "api-integration-test")
+	testDir, err := os.MkdirTemp("", "api-integration-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -91,15 +90,15 @@ func testWorkerRegistrationFlow(t *testing.T, coordURL string, workerURLs []stri
 	// Register workers
 	for i, workerURL := range workerURLs {
 		workerID := fmt.Sprintf("worker-%d", i+1)
-		
+
 		registrationData := map[string]interface{}{
-			"worker_id":   workerID,
-			"endpoint":    workerURL,
+			"worker_id":    workerID,
+			"endpoint":     workerURL,
 			"capabilities": []string{"java", "gradle", "test"},
 			"resources": map[string]interface{}{
-				"cpu_cores":   4,
-				"memory_mb":   8192,
-				"disk_gb":     100,
+				"cpu_cores": 4,
+				"memory_mb": 8192,
+				"disk_gb":   100,
 			},
 		}
 
@@ -160,12 +159,12 @@ func testWorkerRegistrationFlow(t *testing.T, coordURL string, workerURLs []stri
 func testBuildSubmissionFlow(t *testing.T, coordURL string, workerURLs []string, cacheURL string) {
 	// Create build request
 	buildRequest := map[string]interface{}{
-		"project_name":   "test-project",
-		"build_type":     "gradle",
-		"tasks":          []string{"compileJava", "test"},
+		"project_name":    "test-project",
+		"build_type":      "gradle",
+		"tasks":           []string{"compileJava", "test"},
 		"source_location": "/tmp/test-project",
 		"environment": map[string]interface{}{
-			"java_home":  "/usr/lib/jvm/default-java",
+			"java_home":   "/usr/lib/jvm/default-java",
 			"gradle_home": "/usr/local/gradle",
 		},
 		"cache_enabled": true,
@@ -233,10 +232,10 @@ func testBuildSubmissionFlow(t *testing.T, coordURL string, workerURLs []string,
 func testCacheIntegrationFlow(t *testing.T, coordURL string, workerURLs []string, cacheURL string) {
 	// Test cache storage
 	cacheData := map[string]interface{}{
-		"key":       "test-dependency-123",
-		"value":     "cached-content",
-		"ttl":       3600,
-		"metadata":  map[string]string{"project": "test-project"},
+		"key":      "test-dependency-123",
+		"value":    "cached-content",
+		"ttl":      3600,
+		"metadata": map[string]string{"project": "test-project"},
 	}
 
 	jsonData, err := json.Marshal(cacheData)
@@ -284,11 +283,11 @@ func testCacheIntegrationFlow(t *testing.T, coordURL string, workerURLs []string
 func testErrorPropagationFlow(t *testing.T, coordURL string, workerURLs []string) {
 	// Create build request that will fail (use invalid prefix to trigger failure)
 	buildRequest := map[string]interface{}{
-		"project_name":   "invalid-project",
-		"build_type":     "gradle",
-		"tasks":          []string{"invalidTask"},
+		"project_name":    "invalid-project",
+		"build_type":      "gradle",
+		"tasks":           []string{"invalidTask"},
 		"source_location": "/nonexistent/path",
-		"environment":    map[string]interface{}{},
+		"environment":     map[string]interface{}{},
 	}
 
 	jsonData, err := json.Marshal(buildRequest)
@@ -352,7 +351,7 @@ func testErrorPropagationFlow(t *testing.T, coordURL string, workerURLs []string
 
 func setupMockCoordinator(t *testing.T) http.Handler {
 	router := mux.NewRouter()
-	
+
 	// Mock worker registration endpoint
 	router.HandleFunc("/api/workers/register", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -386,7 +385,7 @@ func setupMockCoordinator(t *testing.T) http.Handler {
 	router.HandleFunc("/api/builds/{buildId}/status", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		buildID := vars["buildId"]
-		
+
 		var response map[string]interface{}
 		// Simulate failure for invalid projects (build IDs starting with "invalid")
 		if strings.HasPrefix(buildID, "invalid") {
@@ -402,7 +401,7 @@ func setupMockCoordinator(t *testing.T) http.Handler {
 				"progress": 50,
 			}
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	}).Methods("GET")
@@ -412,18 +411,18 @@ func setupMockCoordinator(t *testing.T) http.Handler {
 
 func setupMockWorkers(t *testing.T, count int) []http.Handler {
 	workers := make([]http.Handler, count)
-	
+
 	for i := 0; i < count; i++ {
 		router := mux.NewRouter()
-		
+
 		// Mock task execution endpoint
 		router.HandleFunc("/api/tasks/execute", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"task_id":    "task-123",
-				"status":     "completed",
-				"duration":   5000,
-				"artifacts":  []string{"build.log", "classes"},
+				"task_id":   "task-123",
+				"status":    "completed",
+				"duration":  5000,
+				"artifacts": []string{"build.log", "classes"},
 			})
 		}).Methods("POST")
 
@@ -439,13 +438,13 @@ func setupMockWorkers(t *testing.T, count int) []http.Handler {
 
 		workers[i] = router
 	}
-	
+
 	return workers
 }
 
 func setupMockCacheServer(t *testing.T) http.Handler {
 	router := mux.NewRouter()
-	
+
 	// Mock cache storage endpoint
 	router.HandleFunc("/api/cache", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

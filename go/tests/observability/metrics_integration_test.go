@@ -171,7 +171,7 @@ func TestRealTimeMetricsStreaming(t *testing.T) {
 	// Subscribe to real-time metrics
 	// In real implementation, this would subscribe to metrics stream
 	// For testing, we simulate metrics collection
-	var receivedMetrics []interface{}
+	var receivedMetrics []any
 	// metricsStream := test.monitor.SubscribeToMetrics()
 	// defer metricsStream.Unsubscribe()
 
@@ -184,7 +184,7 @@ func TestRealTimeMetricsStreaming(t *testing.T) {
 	// Collect streaming metrics
 	// receivedMetrics := metricsStream.CollectForDuration(5 * time.Minute)
 	for i := 0; i < 100; i++ {
-		receivedMetrics = append(receivedMetrics, map[string]interface{}{
+		receivedMetrics = append(receivedMetrics, map[string]any{
 			"timestamp":    time.Now(),
 			"cpu_usage":    rand.Float64(),
 			"memory_usage": rand.Float64(),
@@ -195,7 +195,7 @@ func TestRealTimeMetricsStreaming(t *testing.T) {
 	// Convert to expected type for verification
 	var systemMetrics []*SystemMetrics
 	for _, metric := range receivedMetrics {
-		if metricMap, ok := metric.(map[string]interface{}); ok {
+		if metricMap, ok := metric.(map[string]any); ok {
 			systemMetrics = append(systemMetrics, &SystemMetrics{
 				WorkerUtilization: 0.75,
 				CacheHitRate:      0.85,
@@ -560,7 +560,7 @@ type Alert struct {
 	Severity  string
 	Message   string
 	Timestamp time.Time
-	Metrics   map[string]interface{}
+	Metrics   map[string]any
 	Service   string
 	Resolved  bool
 }
@@ -580,7 +580,7 @@ type LogEntry struct {
 	Message   string
 	TraceID   string
 	SpanID    string
-	Metadata  map[string]interface{}
+	Metadata  map[string]any
 }
 
 // MetricsStream represents real-time metrics streaming
@@ -671,16 +671,16 @@ func (mit *MetricsIntegrationTest) verifyLogAggregation(t *testing.T, aggregated
 	// Verify log aggregation and analysis
 }
 
-func (mit *MetricsIntegrationTest) registerCustomMetrics(t *testing.T) map[string]interface{} {
+func (mit *MetricsIntegrationTest) registerCustomMetrics(t *testing.T) map[string]any {
 	// Register custom metrics
-	return make(map[string]interface{})
+	return make(map[string]any)
 }
 
-func (mit *MetricsIntegrationTest) generateCustomMetricsWorkload(t *testing.T, metrics map[string]interface{}) {
+func (mit *MetricsIntegrationTest) generateCustomMetricsWorkload(t *testing.T, metrics map[string]any) {
 	// Generate workload to populate custom metrics
 }
 
-func (mit *MetricsIntegrationTest) verifyCustomMetrics(t *testing.T, metrics map[string]interface{}) {
+func (mit *MetricsIntegrationTest) verifyCustomMetrics(t *testing.T, metrics map[string]any) {
 	// Verify custom metrics collection
 }
 

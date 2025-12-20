@@ -92,16 +92,16 @@ type CacheConfig struct {
 
 // CacheEntry represents a cached build artifact
 type CacheEntry struct {
-	Key          string                 `json:"key"`
-	Path         string                 `json:"path"`
-	Size         int64                  `json:"size"`
-	Hash         string                 `json:"hash"`
-	CreatedAt    time.Time              `json:"created_at"`
-	LastAccessed time.Time              `json:"last_accessed"`
-	TTL          time.Duration          `json:"ttl"`
-	Metadata     map[string]interface{} `json:"metadata"`
-	AccessCount  int64                  `json:"access_count"`
-	Compression  bool                   `json:"compression"`
+	Key          string         `json:"key"`
+	Path         string         `json:"path"`
+	Size         int64          `json:"size"`
+	Hash         string         `json:"hash"`
+	CreatedAt    time.Time      `json:"created_at"`
+	LastAccessed time.Time      `json:"last_accessed"`
+	TTL          time.Duration  `json:"ttl"`
+	Metadata     map[string]any `json:"metadata"`
+	AccessCount  int64          `json:"access_count"`
+	Compression  bool           `json:"compression"`
 }
 
 // CacheStorage interface for different storage backends
@@ -122,19 +122,19 @@ type FileSystemStorage struct {
 
 // CacheRequest represents a cache request
 type CacheRequest struct {
-	Key      string                 `json:"key"`
-	Data     []byte                 `json:"data"`
-	Hash     string                 `json:"hash"`
-	TTL      time.Duration          `json:"ttl"`
-	Metadata map[string]interface{} `json:"metadata"`
+	Key      string         `json:"key"`
+	Data     []byte         `json:"data"`
+	Hash     string         `json:"hash"`
+	TTL      time.Duration  `json:"ttl"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // CacheResponse represents a cache response
 type CacheResponse struct {
-	Found    bool                   `json:"found"`
-	Entry    *CacheEntry            `json:"entry,omitempty"`
-	Data     []byte                 `json:"data,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Found    bool           `json:"found"`
+	Entry    *CacheEntry    `json:"entry,omitempty"`
+	Data     []byte         `json:"data,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCacheServer creates a new cache server
@@ -251,7 +251,7 @@ func (rs *RedisStorage) Get(key string) (*CacheEntry, error) {
 		Size:      int64(len(data)),
 		CreatedAt: time.Now(), // In real Redis, this would be stored
 		TTL:       0,
-		Metadata:  map[string]interface{}{},
+		Metadata:  map[string]any{},
 	}, nil
 }
 
@@ -295,7 +295,7 @@ func (rs *RedisStorage) List() ([]*CacheEntry, error) {
 			Key:       key,
 			Size:      int64(len(data)),
 			TTL:       0,
-			Metadata:  map[string]interface{}{},
+			Metadata:  map[string]any{},
 			CreatedAt: time.Now(),
 		})
 	}
@@ -345,7 +345,7 @@ func (s3 *S3Storage) Get(key string) (*CacheEntry, error) {
 		Size:      int64(len(data)),
 		CreatedAt: time.Now(), // In real S3, this would be stored
 		TTL:       0,
-		Metadata:  map[string]interface{}{},
+		Metadata:  map[string]any{},
 	}, nil
 }
 
@@ -389,7 +389,7 @@ func (s3 *S3Storage) List() ([]*CacheEntry, error) {
 			Key:       key,
 			Size:      int64(len(data)),
 			TTL:       0,
-			Metadata:  map[string]interface{}{},
+			Metadata:  map[string]any{},
 			CreatedAt: time.Now(),
 		})
 	}
@@ -699,7 +699,7 @@ func (cs *CacheServer) Cleanup() error {
 }
 
 // GetStats returns cache statistics
-func (cs *CacheServer) GetStats() map[string]interface{} {
+func (cs *CacheServer) GetStats() map[string]any {
 	cs.mutex.RLock()
 	defer cs.mutex.RUnlock()
 
@@ -710,7 +710,7 @@ func (cs *CacheServer) GetStats() map[string]interface{} {
 
 	size, _ := cs.storage.GetSize()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"entries":        len(cs.cache),
 		"hit_count":      cs.hitCount,
 		"miss_count":     cs.missCount,

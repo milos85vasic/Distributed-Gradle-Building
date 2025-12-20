@@ -605,7 +605,7 @@ func loadScalabilityBaseline() *ScalabilityBaseline {
 }
 
 func generateRegressionReport(regressions []*PerformanceRegression) {
-	report := map[string]interface{}{
+	report := map[string]any{
 		"timestamp":   time.Now(),
 		"regressions": regressions,
 		"total":       len(regressions),
@@ -675,7 +675,7 @@ type CachePerformanceTest struct {
 	Operations    int
 	ConcurrentOps int
 	DataSize      int
-	Cache         interface{}
+	Cache         any
 	Results       *CachePerformanceResult
 }
 

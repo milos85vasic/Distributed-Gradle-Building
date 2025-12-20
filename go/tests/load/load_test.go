@@ -214,7 +214,7 @@ func TestSustainedConcurrentLoad(t *testing.T) {
 			monitor.TriggerAlert("load_test", "info",
 				fmt.Sprintf("Current load: %d requests, %d successes, %d failures",
 					currentRequests, currentSuccesses, currentFailures),
-				map[string]interface{}{
+				map[string]any{
 					"requests":  currentRequests,
 					"successes": currentSuccesses,
 					"failures":  currentFailures,
@@ -395,7 +395,7 @@ func runCoordinatorLoadTest(coord *coordinatorpkg.BuildCoordinator, threads int,
 		Errors:          make(map[string]int64),
 	}
 
-	errors.Range(func(key, value interface{}) bool {
+	errors.Range(func(key, value any) bool {
 		result.Errors[key.(string)] = value.(int64)
 		return true
 	})
@@ -492,7 +492,7 @@ func runCacheLoadTest(cache *cachepkg.CacheServer, threads int, entries int,
 		Errors:          make(map[string]int64),
 	}
 
-	errors.Range(func(key, value interface{}) bool {
+	errors.Range(func(key, value any) bool {
 		result.Errors[key.(string)] = value.(int64)
 		return true
 	})

@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,7 +20,7 @@ import (
 // TestNetworkSecurity tests network-level security controls
 func TestNetworkSecurity(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "network-security-test")
+	testDir, err := os.MkdirTemp("", "network-security-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestNetworkSecurity(t *testing.T) {
 // TestNetworkDataEncryption tests data encryption and protection in network context
 func TestNetworkDataEncryption(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "data-encryption-test")
+	testDir, err := os.MkdirTemp("", "data-encryption-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestNetworkDataEncryption(t *testing.T) {
 // TestAPIVulnerabilityScanning tests for common API vulnerabilities
 func TestAPIVulnerabilityScanning(t *testing.T) {
 	// Create test environment
-	testDir, err := ioutil.TempDir("", "api-vuln-test")
+	testDir, err := os.MkdirTemp("", "api-vuln-test")
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}

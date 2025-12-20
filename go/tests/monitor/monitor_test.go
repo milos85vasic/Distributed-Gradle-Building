@@ -164,7 +164,7 @@ func TestMonitor_TriggerAlert(t *testing.T) {
 	monitor := monitorpkg.NewMonitor(config)
 
 	// Trigger an alert
-	data := map[string]interface{}{
+	data := map[string]any{
 		"worker_id": "worker-1",
 		"error":     "Connection timeout",
 	}
@@ -268,7 +268,7 @@ func TestMonitor_HTTPHandlers(t *testing.T) {
 		t.Errorf("Health handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	var health map[string]interface{}
+	var health map[string]any
 	err = json.Unmarshal(rr.Body.Bytes(), &health)
 	if err != nil {
 		t.Fatalf("Failed to parse health JSON: %v", err)

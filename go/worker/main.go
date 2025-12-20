@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +10,9 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -67,6 +70,7 @@ type WorkerService struct {
 	config     *WorkerConfig
 	rpcServer  *rpc.Server
 	httpServer *http.Server
+	shutdown   chan struct{}
 }
 
 // loadWorkerConfig loads worker configuration from file and environment variables
@@ -122,7 +126,8 @@ func getEnvBoolOrDefault(key string, defaultValue bool) bool {
 // NewWorkerService creates a new worker service
 func NewWorkerService(config *WorkerConfig) *WorkerService {
 	return &WorkerService{
-		config: config,
+		config:   config,
+		shutdown: make(chan struct{}),
 	}
 }
 
@@ -275,6 +280,19 @@ func (ws *WorkerService) executeBuild(request BuildRequest) error {
 	return nil
 }
 
+// Shutdown gracefully shuts down the worker service
+func (ws *WorkerService) Shutdown() error {
+	close(ws.shutdown)
+
+	if ws.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return ws.httpServer.Shutdown(ctx)
+	}
+
+	return nil
+}
+
 // Main worker application entry point
 func workerMain() {
 	// Load configuration
@@ -311,8 +329,20 @@ func workerMain() {
 
 	log.Printf("Worker %s started successfully", config.ID)
 
-	// Keep the process running
-	select {}
+	// Setup graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	log.Printf("Received signal %v, shutting down...", sig)
+
+	// Graceful shutdown
+	if err := service.Shutdown(); err != nil {
+		log.Printf("Error during shutdown: %v", err)
+	}
+
+	log.Printf("Worker %s shutdown complete", config.ID)
 }
 
 // Main function for worker

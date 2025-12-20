@@ -94,9 +94,9 @@ func (m *Monitor) healthHandler(w http.ResponseWriter, r *http.Request) {
 func (m *Monitor) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"service": "monitor",
-		"metrics": map[string]interface{}{
+		"metrics": map[string]any{
 			"uptime":  "running",
 			"version": "1.0.0",
 		},
@@ -109,23 +109,23 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// Mock data for now - in a real implementation, this would collect from actual monitoring
-	response := map[string]interface{}{
-		"workers": map[string]interface{}{
-			"worker-1": map[string]interface{}{
+	response := map[string]any{
+		"workers": map[string]any{
+			"worker-1": map[string]any{
 				"id":            "worker-1",
 				"status":        "active",
 				"cpu_usage":     0.65,
 				"memory_usage":  0.55,
 				"active_builds": 1,
 			},
-			"worker-2": map[string]interface{}{
+			"worker-2": map[string]any{
 				"id":            "worker-2",
 				"status":        "active",
 				"cpu_usage":     0.45,
 				"memory_usage":  0.35,
 				"active_builds": 0,
 			},
-			"worker-3": map[string]interface{}{
+			"worker-3": map[string]any{
 				"id":            "worker-3",
 				"status":        "idle",
 				"cpu_usage":     0.25,
@@ -133,8 +133,8 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				"active_builds": 0,
 			},
 		},
-		"builds": map[string]interface{}{
-			"build-123": map[string]interface{}{
+		"builds": map[string]any{
+			"build-123": map[string]any{
 				"build_id":       "build-123",
 				"worker_id":      "worker-1",
 				"project_path":   "/projects/myapp",
@@ -143,7 +143,7 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				"start_time":     time.Now().Add(-10 * time.Minute).Format(time.RFC3339),
 				"end_time":       time.Now().Add(-8 * time.Minute).Format(time.RFC3339),
 				"cache_hit_rate": 0.75,
-				"resource_usage": map[string]interface{}{
+				"resource_usage": map[string]any{
 					"cpu_percent":  0.65,
 					"memory_usage": 512 * 1024 * 1024, // 512MB
 					"disk_io":      1024 * 1024,       // 1MB
@@ -151,7 +151,7 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				},
 				"error_message": "",
 			},
-			"build-124": map[string]interface{}{
+			"build-124": map[string]any{
 				"build_id":       "build-124",
 				"worker_id":      "worker-2",
 				"project_path":   "/projects/web",
@@ -160,7 +160,7 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				"start_time":     time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
 				"end_time":       time.Now().Add(-3 * time.Minute).Format(time.RFC3339),
 				"cache_hit_rate": 0.20,
-				"resource_usage": map[string]interface{}{
+				"resource_usage": map[string]any{
 					"cpu_percent":  0.80,
 					"memory_usage": 1024 * 1024 * 1024, // 1GB
 					"disk_io":      2048 * 1024,        // 2MB
@@ -169,7 +169,7 @@ func (m *Monitor) apiMetricsHandler(w http.ResponseWriter, r *http.Request) {
 				"error_message": "Test failures detected",
 			},
 		},
-		"system": map[string]interface{}{
+		"system": map[string]any{
 			"total_builds":       150,
 			"successful_builds":  135,
 			"failed_builds":      15,

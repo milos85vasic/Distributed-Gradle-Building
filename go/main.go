@@ -48,6 +48,7 @@ type BuildCoordinator struct {
 	rpcServer    *rpc.Server
 	listener     net.Listener
 	shutdown     chan struct{}
+	startTime    time.Time
 }
 
 // Prometheus metrics for coordinator
@@ -100,6 +101,7 @@ func NewBuildCoordinator(maxWorkers int) *BuildCoordinator {
 		ActiveBuilds: make(map[string]chan types.BuildResponse),
 		MLService:    service.NewMLService(),
 		shutdown:     make(chan struct{}),
+		startTime:    time.Now(),
 	}
 
 	// Initialize RPC server
@@ -849,7 +851,7 @@ func (bc *BuildCoordinator) handleWorkersRequest(w http.ResponseWriter, r *http.
 }
 
 func (bc *BuildCoordinator) handleStatusRequest(w http.ResponseWriter, r *http.Request) {
-	status := map[string]interface{}{
+	status := map[string]any{
 		"timestamp":     time.Now(),
 		"worker_count":  len(bc.WorkerPool.Workers),
 		"queue_length":  len(bc.BuildQueue),
@@ -862,7 +864,23 @@ func (bc *BuildCoordinator) handleStatusRequest(w http.ResponseWriter, r *http.R
 
 func (bc *BuildCoordinator) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+
+	bc.mutex.RLock()
+	workerCount := len(bc.WorkerPool.Workers)
+	buildQueueLength := len(bc.BuildQueue)
+	bc.mutex.RUnlock()
+
+	health := map[string]any{
+		"status":      "healthy",
+		"service":     "coordinator",
+		"version":     "1.0.0",
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"workers":     workerCount,
+		"build_queue": buildQueueLength,
+		"uptime":      time.Since(bc.startTime).String(),
+	}
+
+	json.NewEncoder(w).Encode(health)
 }
 
 // Main coordinator application entry point
@@ -908,11 +926,6 @@ func coordinatorMain() {
 	if coordinator.listener != nil {
 		coordinator.listener.Close()
 	}
-}
-
-// Helper function to start coordinator
-func runCoordinator() {
-	coordinatorMain()
 }
 
 // Main function removed - use coordinator/main.go instead

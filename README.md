@@ -4,8 +4,6 @@
 
 The Distributed Gradle Building System enables **true distributed compilation** across multiple worker machines, utilizing their combined CPU cores and memory for faster builds.
 
-> **⚠️ IMPORTANT:** The original `sync_and_build.sh` has been upgraded from a simple file sync script to use **real distributed building** that actually utilizes worker resources.
-
 ## 🎯 Key Features
 
 - ✅ **True Distributed Building** - Tasks executed on multiple workers
